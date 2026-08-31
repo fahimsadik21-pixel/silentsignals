@@ -1,0 +1,737 @@
+"use client";
+
+import Link from "next/link";
+import { upload } from "@vercel/blob/client";
+import type { ChangeEvent, FormEvent } from "react";
+import { useState } from "react";
+import { BrandIdentity } from "@/components/brand-identity";
+import { openPreviewCase, type PreviewCase } from "@/lib/preview-case-store";
+import styles from "./case-access.module.css";
+
+const credentialAlphabet = /^[A-HJ-NP-Z2-9]+$/;
+
+type OpenedCase = {
+  trackingCode: string;
+  status: string;
+  route: string;
+  category: string;
+  urgency: string;
+  title: string;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+  evidenceCount: number;
+  source: "encrypted_preview" | "database";
+  messages: CaseMessage[];
+  events: CaseEvent[];
+  evidence: CaseEvidence[];
+};
+
+type CaseMessage = { id: string; sender: string; body: string; createdAt: string };
+type CaseEvent = {
+  id: string;
+  type: string;
+  status: string;
+  actor: string;
+  detail: string | null;
+  createdAt: string;
+};
+type CaseEvidence = {
+  id: string;
+  name: string;
+  contentType: string;
+  byteSize: number;
+  status: string;
+  createdAt: string;
+};
+
+type AccessResponse = {
+  data?: Omit<OpenedCase, "trackingCode" | "source" | "evidenceCount"> & {
+    evidenceCount?: number;
+  };
+  error?: { code?: string; message?: string };
+};
+
+type SnapshotResponse = {
+  data?: {
+    trackingCode: string;
+    status: string;
+    route: string;
+    urgency: string;
+    createdAt: string;
+    updatedAt: string;
+    evidenceCount: number;
+    report: { category: string; title: string; description: string };
+    messages: CaseMessage[];
+    events: CaseEvent[];
+    evidence: CaseEvidence[];
+  };
+  error?: { message?: string };
+};
+
+const progressSteps = ["Received", "Triage", "Under review", "Resolution"];
+
+function formatTrackingCode(value: string) {
+  const clean = value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 15);
+
+  if (!clean) return "";
+
+  const prefix = clean.slice(0, 3);
+  const year = clean.slice(3, 7);
+  const first = clean.slice(7, 11);
+  const second = clean.slice(11, 15);
+
+  return [prefix, year, first, second].filter(Boolean).join("-");
+}
+
+function formatAccessKey(value: string) {
+  const clean = value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 16);
+  return clean.match(/.{1,4}/g)?.join(" ") ?? "";
+}
+
+function titleCase(value: string) {
+  return value.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function formatDate(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "Not available";
+
+  return new Intl.DateTimeFormat("en", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function previewToOpenedCase(preview: PreviewCase): OpenedCase {
+  return {
+    trackingCode: preview.trackingCode,
+    status: preview.status,
+    route: preview.route,
+    category: preview.category,
+    urgency: preview.urgency,
+    title: preview.title,
+    description: preview.description,
+    createdAt: preview.createdAt,
+    updatedAt: preview.updatedAt,
+    evidenceCount: preview.evidenceCount,
+    source: "encrypted_preview",
+    messages: [],
+    events: [],
+    evidence: [],
+  };
+}
+
+function snapshotToOpenedCase(snapshot: NonNullable<SnapshotResponse["data"]>): OpenedCase {
+  return {
+    trackingCode: snapshot.trackingCode,
+    status: snapshot.status,
+    route: snapshot.route,
+    category: snapshot.report.category,
+    urgency: snapshot.urgency,
+    title: snapshot.report.title,
+    description: snapshot.report.description,
+    createdAt: snapshot.createdAt,
+    updatedAt: snapshot.updatedAt,
+    evidenceCount: snapshot.evidenceCount,
+    source: "database",
+    messages: snapshot.messages,
+    events: snapshot.events,
+    evidence: snapshot.evidence,
+  };
+}
+
+function formatBytes(value: number) {
+  if (value < 1024 * 1024) return `${Math.max(1, Math.round(value / 1024))} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function evidenceContentType(file: File) {
+  if (file.type) return file.type;
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  const types: Record<string, string> = {
+    pdf: "application/pdf", doc: "application/msword",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp",
+    txt: "text/plain", mp3: "audio/mpeg", m4a: "audio/x-m4a", wav: "audio/wav",
+    mp4: "video/mp4", webm: "video/webm",
+  };
+  return types[extension ?? ""] ?? "application/octet-stream";
+}
+
+export function CaseAccess() {
+  const [trackingCode, setTrackingCode] = useState("");
+  const [accessKey, setAccessKey] = useState("");
+  const [showKey, setShowKey] = useState(false);
+  const [attempted, setAttempted] = useState(false);
+  const [isOpening, setIsOpening] = useState(false);
+  const [accessError, setAccessError] = useState("");
+  const [openedCase, setOpenedCase] = useState<OpenedCase | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [message, setMessage] = useState("");
+  const [workspaceError, setWorkspaceError] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [evidenceProgress, setEvidenceProgress] = useState("");
+
+  const trackingParts = trackingCode.split("-");
+  const trackingValid =
+    trackingParts.length === 4 &&
+    trackingParts[0] === "SIG" &&
+    /^\d{4}$/.test(trackingParts[1] ?? "") &&
+    credentialAlphabet.test(trackingParts[2] ?? "") &&
+    credentialAlphabet.test(trackingParts[3] ?? "") &&
+    trackingParts[2]?.length === 4 &&
+    trackingParts[3]?.length === 4;
+  const keyClean = accessKey.replaceAll(" ", "");
+  const accessKeyValid = keyClean.length === 16 && credentialAlphabet.test(keyClean);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setAttempted(true);
+    setAccessError("");
+
+    if (!trackingValid || !accessKeyValid) return;
+
+    setIsOpening(true);
+
+    try {
+      const localCase = await openPreviewCase(trackingCode, accessKey);
+
+      if (localCase) {
+        setOpenedCase(previewToOpenedCase(localCase));
+        setAccessKey("");
+        return;
+      }
+
+      const response = await fetch("/api/cases/access", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trackingCode, accessKey }),
+      });
+      const result = (await response.json()) as AccessResponse;
+
+      if (response.ok && result.data) {
+        setOpenedCase({
+          ...result.data,
+          trackingCode,
+          evidenceCount: result.data.evidenceCount ?? 0,
+          source: "database",
+        });
+        setAccessKey("");
+        return;
+      }
+
+      if (response.status === 429) {
+        setAccessError(result.error?.message ?? "Too many attempts. Try again later.");
+      } else if (response.status === 503) {
+        setAccessError(
+          "No encrypted preview matches these credentials in this browser. Older preview receipts were not stored; create one new report, then use its new credentials here.",
+        );
+      } else {
+        setAccessError("The tracking code and private access key do not match a case.");
+      }
+    } catch {
+      setAccessError(
+        "No encrypted preview matches these credentials in this browser, and the secure database is currently unavailable.",
+      );
+    } finally {
+      setIsOpening(false);
+    }
+  };
+
+  const lockCase = () => {
+    setOpenedCase(null);
+    setTrackingCode("");
+    setAccessKey("");
+    setAttempted(false);
+    setAccessError("");
+    setCopied(false);
+    setMessage("");
+    setWorkspaceError("");
+    setEvidenceProgress("");
+  };
+
+  const copyTrackingCode = async () => {
+    if (!openedCase) return;
+
+    await navigator.clipboard.writeText(openedCase.trackingCode);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
+  };
+
+  const refreshDatabaseCase = async () => {
+    const response = await fetch("/api/cases/current", { cache: "no-store" });
+    const result = (await response.json()) as SnapshotResponse;
+    if (!response.ok || !result.data) {
+      throw new Error(result.error?.message ?? "Open the case again to continue.");
+    }
+    setOpenedCase(snapshotToOpenedCase(result.data));
+  };
+
+  const sendMessage = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!openedCase || openedCase.source !== "database" || message.trim().length < 2) return;
+    setIsSending(true);
+    setWorkspaceError("");
+
+    try {
+      const response = await fetch("/api/cases/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: message }),
+      });
+      const result = (await response.json()) as SnapshotResponse;
+      if (!response.ok || !result.data) {
+        throw new Error(result.error?.message ?? "The message could not be sent.");
+      }
+      setOpenedCase(snapshotToOpenedCase(result.data));
+      setMessage("");
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "The message could not be sent.");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const addEvidence = async (event: ChangeEvent<HTMLInputElement>) => {
+    if (!openedCase || openedCase.source !== "database") return;
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (files.length === 0) return;
+    if (openedCase.evidenceCount + files.length > 5) {
+      setWorkspaceError("A case can contain up to five evidence files.");
+      return;
+    }
+
+    setWorkspaceError("");
+    setEvidenceProgress(`Uploading 0 of ${files.length}…`);
+    const results = await Promise.allSettled(
+      files.map(async (file, index) => {
+        if (file.size > 15 * 1024 * 1024) throw new Error(`${file.name} is larger than 15 MB.`);
+        const contentType = evidenceContentType(file);
+        return upload(`evidence/${crypto.randomUUID()}`, file, {
+          access: "private",
+          handleUploadUrl: "/api/cases/evidence/upload",
+          multipart: file.size > 4 * 1024 * 1024,
+          contentType,
+          clientPayload: JSON.stringify({ fileName: file.name, contentType, byteSize: file.size }),
+          onUploadProgress: ({ percentage }) =>
+            setEvidenceProgress(
+              `Protecting file ${index + 1} of ${files.length} · ${Math.round(percentage)}%`,
+            ),
+        });
+      }),
+    );
+    const failed = results.filter((result) => result.status === "rejected").length;
+
+    try {
+      await refreshDatabaseCase();
+      if (failed > 0) setWorkspaceError(`${failed} evidence file(s) could not be uploaded.`);
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Evidence status could not refresh.");
+    } finally {
+      setEvidenceProgress("");
+    }
+  };
+
+  if (openedCase) {
+    const statusIndex =
+      openedCase.status === "resolved" || openedCase.status === "closed"
+        ? 3
+        : openedCase.status === "under_review" || openedCase.status === "awaiting_reporter"
+          ? 2
+          : openedCase.status === "triage"
+            ? 1
+            : 0;
+
+    return (
+      <main className={styles.page}>
+        <CaseHeader actionLabel="Lock case" onAction={lockCase} />
+
+        <section className={styles.workspaceLayout}>
+          <div className={styles.workspaceHeading}>
+            <div>
+              <p className={styles.eyebrow}>Private case workspace</p>
+              <h1>{openedCase.title}</h1>
+            </div>
+            <div className={styles.workspaceStatus}>
+              <span aria-hidden="true" />
+              {titleCase(openedCase.status)}
+            </div>
+          </div>
+
+          <div className={styles.workspaceGrid}>
+            <div className={styles.workspaceMain}>
+              <article className={styles.statusCard}>
+                <div className={styles.cardTopline}>
+                  <div>
+                    <p>Case progress</p>
+                    <h2>Current status: {titleCase(openedCase.status)}</h2>
+                  </div>
+                  <span>Updated {formatDate(openedCase.updatedAt)}</span>
+                </div>
+                <ol className={styles.caseProgress}>
+                  {progressSteps.map((step, index) => (
+                    <li className={index <= statusIndex ? styles.completedProgress : ""} key={step}>
+                      <span>{index < statusIndex ? "✓" : `0${index + 1}`}</span>
+                      <strong>{step}</strong>
+                    </li>
+                  ))}
+                </ol>
+                <div className={styles.statusMessage}>
+                  <span aria-hidden="true">i</span>
+                  <p>
+                    <strong>{titleCase(openedCase.status)}</strong>
+                    {openedCase.events.at(-1)?.detail ??
+                      "Every status change and reviewer update will appear in this private workspace."}
+                  </p>
+                </div>
+                {openedCase.events.length > 0 && (
+                  <div className={styles.caseTimeline}>
+                    {openedCase.events.map((event) => (
+                      <div key={event.id}>
+                        <i aria-hidden="true" />
+                        <p>
+                          <strong>{titleCase(event.type)}</strong>
+                          <span>{event.detail ?? titleCase(event.status)}</span>
+                          <small>{formatDate(event.createdAt)}</small>
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </article>
+
+              <article className={styles.summaryCard}>
+                <div className={styles.cardTopline}>
+                  <div>
+                    <p>Submitted report</p>
+                    <h2>Case summary</h2>
+                  </div>
+                  <span>{formatDate(openedCase.createdAt)}</span>
+                </div>
+                <dl className={styles.caseFacts}>
+                  <div>
+                    <dt>Category</dt>
+                    <dd>{openedCase.category}</dd>
+                  </div>
+                  <div>
+                    <dt>Urgency</dt>
+                    <dd>{titleCase(openedCase.urgency)}</dd>
+                  </div>
+                  <div>
+                    <dt>Routing</dt>
+                    <dd>{openedCase.route}</dd>
+                  </div>
+                  <div>
+                    <dt>Evidence</dt>
+                    <dd>{openedCase.evidenceCount} protected file(s)</dd>
+                  </div>
+                </dl>
+                {openedCase.description && (
+                  <div className={styles.caseNarrative}>
+                    <span>Detailed account</span>
+                    <p>{openedCase.description}</p>
+                  </div>
+                )}
+                {openedCase.source === "database" && (
+                  <div className={styles.reporterEvidence}>
+                    <div>
+                      <strong>Protected evidence</strong>
+                      <span>{evidenceProgress || "Private files remain restricted to this case."}</span>
+                    </div>
+                    <label>
+                      Add evidence
+                      <input
+                        accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.txt,.mp3,.m4a,.wav,.mp4,.webm"
+                        multiple
+                        onChange={addEvidence}
+                        type="file"
+                      />
+                    </label>
+                    {openedCase.evidence.map((file) => (
+                      <a href={`/api/cases/evidence/${file.id}`} key={file.id}>
+                        <span>{file.name.split(".").pop()?.slice(0, 4).toUpperCase() || "FILE"}</span>
+                        <p><strong>{file.name}</strong><small>{formatBytes(file.byteSize)} · {titleCase(file.status)}</small></p>
+                        <b>Download</b>
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </article>
+
+              <article className={styles.messageCard}>
+                <div className={styles.messageWorkspace}>
+                  <p>Secure correspondence</p>
+                  <h2>
+                    {openedCase.messages.length > 0
+                      ? "Private case conversation"
+                      : "No investigator messages yet."}
+                  </h2>
+                  <div className={styles.messageThread}>
+                    {openedCase.messages.map((item) => (
+                      <div
+                        className={item.sender === "reporter" ? styles.reporterBubble : styles.reviewerBubble}
+                        key={item.id}
+                      >
+                        <strong>{item.sender === "reporter" ? "You" : "Review team"}</strong>
+                        <span>{item.body}</span>
+                        <small>{formatDate(item.createdAt)}</small>
+                      </div>
+                    ))}
+                  </div>
+                  {openedCase.source === "database" ? (
+                    <form className={styles.replyForm} onSubmit={sendMessage}>
+                      <textarea
+                        maxLength={4000}
+                        onChange={(event) => setMessage(event.target.value)}
+                        placeholder="Reply without including identity details…"
+                        value={message}
+                      />
+                      <button disabled={isSending || message.trim().length < 2} type="submit">
+                        {isSending ? "Sending…" : "Send private reply"}
+                      </button>
+                    </form>
+                  ) : (
+                    <span>Messaging becomes available when the production database is connected.</span>
+                  )}
+                  {workspaceError && <div className={styles.workspaceError}>{workspaceError}</div>}
+                </div>
+              </article>
+            </div>
+
+            <aside className={styles.caseSidebar}>
+              <div className={styles.caseIdentityCard}>
+                <p>Case reference</p>
+                <strong>{openedCase.trackingCode}</strong>
+                <button type="button" onClick={copyTrackingCode}>
+                  {copied ? "Copied" : "Copy tracking code"}
+                </button>
+              </div>
+
+              <div className={styles.routeCard}>
+                <p>Assigned route</p>
+                <strong>{openedCase.route}</strong>
+                <span>
+                  Access is limited to reviewers authorized for this routing level.
+                </span>
+              </div>
+
+              <div className={styles.previewModeCard}>
+                <span aria-hidden="true">{openedCase.source === "encrypted_preview" ? "L" : "D"}</span>
+                <div>
+                  <strong>
+                    {openedCase.source === "encrypted_preview"
+                      ? "Encrypted local preview"
+                      : "Secure database case"}
+                  </strong>
+                  <p>
+                    {openedCase.source === "encrypted_preview"
+                      ? "This case exists only in this browser and is protected by the private access key."
+                      : "This case was verified by the server-side credential service."}
+                  </p>
+                </div>
+              </div>
+
+              <button className={styles.lockButton} type="button" onClick={lockCase}>
+                Lock and leave case
+              </button>
+            </aside>
+          </div>
+        </section>
+
+        <CaseFooter />
+      </main>
+    );
+  }
+
+  return (
+    <main className={styles.page}>
+      <CaseHeader />
+
+      <section className={styles.accessLayout}>
+        <div className={styles.intro}>
+          <p className={styles.eyebrow}>Private case access</p>
+          <h1>Return to your case without revealing who you are.</h1>
+          <p className={styles.summary}>
+            Your tracking code finds the case. Your private access key proves you are the
+            reporter. Neither credential contains your name or account information.
+          </p>
+
+          <div className={styles.privacyList}>
+            <div>
+              <span>01</span>
+              <p>
+                <strong>No account login</strong>
+                No email address, password reset, or identity profile.
+              </p>
+            </div>
+            <div>
+              <span>02</span>
+              <p>
+                <strong>Two-part access</strong>
+                A tracking code alone cannot open a private case.
+              </p>
+            </div>
+            <div>
+              <span>03</span>
+              <p>
+                <strong>Restricted attempts</strong>
+                Production access is rate-limited and security logged.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className={styles.accessColumn}>
+          <form className={styles.accessCard} onSubmit={handleSubmit} noValidate>
+            <div className={styles.cardHeading}>
+              <div className={styles.lockMark} aria-hidden="true">
+                <span />
+              </div>
+              <div>
+                <p>Secure gateway</p>
+                <h2>Open a private case</h2>
+              </div>
+            </div>
+
+            <div className={styles.fieldGroup}>
+              <div className={styles.labelRow}>
+                <label htmlFor="tracking-code">Tracking code</label>
+                <span>Shown on your receipt</span>
+              </div>
+              <input
+                aria-describedby="tracking-hint tracking-error"
+                aria-invalid={attempted && !trackingValid}
+                autoCapitalize="characters"
+                autoComplete="off"
+                id="tracking-code"
+                inputMode="text"
+                onChange={(event) => {
+                  setTrackingCode(formatTrackingCode(event.target.value));
+                  setAccessError("");
+                }}
+                placeholder="SIG-2026-A7K2-9M4Q"
+                spellCheck={false}
+                value={trackingCode}
+              />
+              <p className={styles.fieldHint} id="tracking-hint">
+                Format: SIG–YEAR–XXXX–XXXX
+              </p>
+              {attempted && !trackingValid && (
+                <p className={styles.errorText} id="tracking-error">
+                  Enter the complete tracking code from your receipt.
+                </p>
+              )}
+            </div>
+
+            <div className={styles.fieldGroup}>
+              <div className={styles.labelRow}>
+                <label htmlFor="access-key">Private access key</label>
+                <button type="button" onClick={() => setShowKey((visible) => !visible)}>
+                  {showKey ? "Hide" : "Show"}
+                </button>
+              </div>
+              <div className={styles.secretInput}>
+                <input
+                  aria-describedby="key-hint key-error"
+                  aria-invalid={attempted && !accessKeyValid}
+                  autoCapitalize="characters"
+                  autoComplete="off"
+                  id="access-key"
+                  onChange={(event) => {
+                    setAccessKey(formatAccessKey(event.target.value));
+                    setAccessError("");
+                  }}
+                  placeholder="XXXX XXXX XXXX XXXX"
+                  spellCheck={false}
+                  type={showKey ? "text" : "password"}
+                  value={accessKey}
+                />
+                <span aria-hidden="true">16 characters</span>
+              </div>
+              <p className={styles.fieldHint} id="key-hint">
+                This key cannot be recovered if it is lost.
+              </p>
+              {attempted && !accessKeyValid && (
+                <p className={styles.errorText} id="key-error">
+                  Enter all four groups of your private access key.
+                </p>
+              )}
+            </div>
+
+            {accessError && (
+              <div className={styles.accessError} role="alert">
+                <span aria-hidden="true">!</span>
+                <p>{accessError}</p>
+              </div>
+            )}
+
+            <button className={styles.primaryButton} disabled={isOpening} type="submit">
+              {isOpening ? "Opening secure case…" : "Access private case"}{" "}
+              <span aria-hidden="true">→</span>
+            </button>
+
+            <p className={styles.formFootnote}>
+              Never share both credentials with another person. SilentSignals support will
+              never ask for your private access key.
+            </p>
+          </form>
+
+          <div className={styles.helpCard}>
+            <span aria-hidden="true">?</span>
+            <div>
+              <strong>Using an older preview receipt?</strong>
+              <p>
+                Earlier previews did not save a case. Create one new report to generate an
+                encrypted record that can be reopened here.
+              </p>
+            </div>
+            <Link href="/report">New report</Link>
+          </div>
+        </div>
+      </section>
+
+      <CaseFooter />
+    </main>
+  );
+}
+
+function CaseHeader({
+  actionLabel,
+  onAction,
+}: {
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
+  return (
+    <header className={styles.header}>
+      <Link className="brand" href="/" aria-label="SilentSignals home">
+        <BrandIdentity />
+      </Link>
+      <div className={styles.headerTrust}>
+        <i aria-hidden="true" />
+        Private credential access
+      </div>
+      {onAction ? (
+        <button className={styles.exitLink} type="button" onClick={onAction}>
+          {actionLabel}
+        </button>
+      ) : (
+        <Link className={styles.exitLink} href="/">
+          Return home
+        </Link>
+      )}
+    </header>
+  );
+}
+
+function CaseFooter() {
+  return (
+    <footer className={styles.footer}>
+      <span>SilentSignals secure workspace</span>
+      <span>Private access without an identity account</span>
+    </footer>
+  );
+}
