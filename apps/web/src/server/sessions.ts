@@ -7,18 +7,30 @@ const reporterCookie = "ss_case_session";
 
 type ReviewerRow = {
   id: string;
-  email: string;
   display_name: string;
+  public_id: string;
   role: "reviewer" | "administrator";
   route_scope: "committee" | "independent_oversight" | "all";
+  availability: "available" | "away" | "offline";
+  team_id: string | null;
+  team_public_id: string | null;
+  team_label: string | null;
+  team_type: "committee" | "independent_oversight" | null;
+  team_role: "lead" | "member" | null;
 };
 
 export type ReviewerIdentity = {
   id: string;
-  email: string;
   displayName: string;
+  publicId: string;
   role: ReviewerRow["role"];
   routeScope: ReviewerRow["route_scope"];
+  availability: ReviewerRow["availability"];
+  teamId: string | null;
+  teamPublicId: string | null;
+  teamLabel: string | null;
+  teamType: ReviewerRow["team_type"];
+  teamRole: ReviewerRow["team_role"];
 };
 
 function readCookie(request: Request, name: string) {
@@ -81,12 +93,23 @@ export async function getReviewerIdentity(request: Request): Promise<ReviewerIde
 
   const sql = getDatabase();
   const rows = await sql`
-    SELECT u.id, u.email, u.display_name, u.role, u.route_scope
+    SELECT u.id, u.display_name, u.public_id, u.role, u.route_scope, u.availability,
+      membership.team_id, membership.team_public_id, membership.team_label,
+      membership.team_type, membership.team_role
     FROM reviewer_sessions s
     JOIN reviewer_users u ON u.id = s.reviewer_id
+    LEFT JOIN LATERAL (
+      SELECT m.team_id, t.public_id AS team_public_id, t.label AS team_label,
+        t.team_type, m.member_role AS team_role
+      FROM reviewer_team_members m
+      JOIN reviewer_teams t ON t.id = m.team_id
+      WHERE m.reviewer_id = u.id AND m.is_active = true
+      LIMIT 1
+    ) membership ON true
     WHERE s.token_hash = ${hashOpaqueToken(token)}
       AND s.expires_at > now()
       AND u.is_active = true
+      AND u.account_status = 'active'
     LIMIT 1
   `;
   const reviewer = rows[0] as ReviewerRow | undefined;
@@ -102,10 +125,16 @@ export async function getReviewerIdentity(request: Request): Promise<ReviewerIde
 
   return {
     id: reviewer.id,
-    email: reviewer.email,
     displayName: reviewer.display_name,
+    publicId: reviewer.public_id,
     role: reviewer.role,
     routeScope: reviewer.route_scope,
+    availability: reviewer.availability,
+    teamId: reviewer.team_id,
+    teamPublicId: reviewer.team_public_id,
+    teamLabel: reviewer.team_label,
+    teamType: reviewer.team_type,
+    teamRole: reviewer.team_role,
   };
 }
 

@@ -27,7 +27,7 @@ type OpenedCase = {
   evidence: CaseEvidence[];
 };
 
-type CaseMessage = { id: string; sender: string; body: string; createdAt: string };
+type CaseMessage = { id: string; sender: string; senderPublicId?: string | null; body: string; createdAt: string };
 type CaseEvent = {
   id: string;
   type: string;
@@ -475,7 +475,7 @@ export function CaseAccess() {
                         className={item.sender === "reporter" ? styles.reporterBubble : styles.reviewerBubble}
                         key={item.id}
                       >
-                        <strong>{item.sender === "reporter" ? "You" : "Review team"}</strong>
+                        <strong>{item.sender === "reporter" ? "You" : `Lead Reviewer · ${item.senderPublicId ?? "REV-PRIVATE"}`}</strong>
                         <span>{item.body}</span>
                         <small>{formatDate(item.createdAt)}</small>
                       </div>

@@ -5,6 +5,7 @@ import { reportInputSchema } from "@/server/report-schema";
 import { createSecurityScope, encryptPayload, generateCaseCredentials, hashAccessKey } from "@/server/security";
 import { createReporterSession } from "@/server/sessions";
 import { isRateLimited, recordSecurityEvent } from "@/server/rate-limit";
+import { findTeamForNewReport } from "@/server/governance-service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,6 +68,7 @@ export async function POST(request: Request) {
         ? "independent_oversight"
         : "committee";
     const priority = parsed.data.urgency === "immediate" ? 4 : parsed.data.urgency === "urgent" ? 3 : 2;
+    const assignment = await findTeamForNewReport(routeType);
 
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const credentials = generateCaseCredentials();
@@ -89,7 +91,10 @@ export async function POST(request: Request) {
               route_type,
               urgency,
               evidence_count,
-              priority
+              priority,
+              assigned_team_id,
+              lead_reviewer_id,
+              assigned_reviewer_id
             ) VALUES (
               ${reportId},
               ${credentials.trackingCode},
@@ -102,7 +107,10 @@ export async function POST(request: Request) {
               ${routeType},
               ${parsed.data.urgency},
               0,
-              ${priority}
+              ${priority},
+              ${assignment?.teamId ?? null},
+              ${assignment?.leadReviewerId ?? null},
+              ${assignment?.leadReviewerId ?? null}
             )
           `,
           transaction`

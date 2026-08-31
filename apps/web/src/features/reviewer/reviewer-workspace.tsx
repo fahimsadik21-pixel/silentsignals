@@ -4,14 +4,21 @@ import Link from "next/link";
 import type { FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BrandIdentity } from "@/components/brand-identity";
+import { GovernanceDashboard } from "./governance-dashboard";
 import styles from "./reviewer-workspace.module.css";
 
 type Reviewer = {
   id: string;
-  email: string;
   displayName: string;
+  publicId: string;
   role: "reviewer" | "administrator";
   routeScope: string;
+  availability: "available" | "away" | "offline";
+  teamId: string | null;
+  teamPublicId: string | null;
+  teamLabel: string | null;
+  teamType: string | null;
+  teamRole: "lead" | "member" | null;
 };
 
 type CaseListItem = {
@@ -26,6 +33,10 @@ type CaseListItem = {
   evidenceCount: number;
   assignedReviewerId: string | null;
   assignedReviewerName: string | null;
+  assignedReviewerPublicId?: string | null;
+  teamPublicId?: string | null;
+  teamLabel?: string | null;
+  canReply?: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -40,6 +51,11 @@ type CaseSnapshot = {
   priority: number;
   assignedReviewerId: string | null;
   assignedReviewerName: string | null;
+  assignedReviewerPublicId: string | null;
+  assignedTeamPublicId: string | null;
+  assignedTeamLabel: string | null;
+  canReply: boolean;
+  viewerTeamRole: "lead" | "member" | null;
   createdAt: string;
   updatedAt: string;
   report: {
@@ -52,7 +68,8 @@ type CaseSnapshot = {
     incidentDate: string;
     location: string;
   };
-  messages: Array<{ id: string; sender: string; body: string; createdAt: string }>;
+  messages: Array<{ id: string; sender: string; senderPublicId: string | null; body: string; createdAt: string }>;
+  internalNotes: Array<{ id: string; authorPublicId: string; body: string; createdAt: string }>;
   events: Array<{
     id: string;
     type: string;
@@ -104,6 +121,8 @@ export function ReviewerWorkspace() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [loginError, setLoginError] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [registrationReceipt, setRegistrationReceipt] = useState("");
   const [cases, setCases] = useState<CaseListItem[]>([]);
   const [metrics, setMetrics] = useState<Metrics>(emptyMetrics);
   const [reviewers, setReviewers] = useState<ReviewerOption[]>([]);
@@ -115,6 +134,7 @@ export function ReviewerWorkspace() {
   const [assignmentFilter, setAssignmentFilter] = useState("");
   const [message, setMessage] = useState("");
   const [caseNote, setCaseNote] = useState("");
+  const [internalNote, setInternalNote] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
   const fetchCases = useCallback(async () => {
@@ -155,13 +175,13 @@ export function ReviewerWorkspace() {
   }, []);
 
   useEffect(() => {
-    if (!reviewer) return;
+    if (!reviewer || reviewer.role !== "reviewer") return;
     const timeout = window.setTimeout(() => void fetchCases(), 180);
     return () => window.clearTimeout(timeout);
   }, [fetchCases, reviewer]);
 
   useEffect(() => {
-    if (!reviewer) return;
+    if (!reviewer || reviewer.role !== "reviewer") return;
     void fetch("/api/reviewer/reviewers", { cache: "no-store" })
       .then((response) => response.json())
       .then((result) => setReviewers(result.data ?? []));
@@ -187,6 +207,33 @@ export function ReviewerWorkspace() {
       setReviewer(session.data);
     } catch (error) {
       setLoginError(error instanceof Error ? error.message : "Sign in failed.");
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleRegistration = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsLoggingIn(true);
+    setLoginError("");
+    setRegistrationReceipt("");
+    const form = new FormData(event.currentTarget);
+    try {
+      const response = await fetch("/api/reviewer/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: form.get("email"),
+          password: form.get("password"),
+          inviteCode: form.get("inviteCode"),
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error?.message ?? "Registration could not be submitted.");
+      setRegistrationReceipt(`${result.data.reviewerPublicId} · ${result.data.requestPublicId}`);
+      event.currentTarget.reset();
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : "Registration could not be submitted.");
     } finally {
       setIsLoggingIn(false);
     }
@@ -251,6 +298,36 @@ export function ReviewerWorkspace() {
     }
   };
 
+  const sendInternalNote = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedCase || internalNote.trim().length < 2) return;
+    setIsSaving(true);
+    try {
+      const response = await fetch(`/api/reviewer/cases/${selectedCase.id}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: internalNote }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error?.message ?? "Internal note could not be saved.");
+      setSelectedCase({ ...selectedCase, internalNotes: result.data });
+      setInternalNote("");
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Internal note could not be saved.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const setAvailability = async (availability: Reviewer["availability"]) => {
+    const response = await fetch("/api/reviewer/availability", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ availability }),
+    });
+    if (response.ok && reviewer) setReviewer({ ...reviewer, availability });
+  };
+
   const metricCards = useMemo(
     () => [
       ["Open queue", metrics.total, "Cases in the current view"],
@@ -283,27 +360,42 @@ export function ReviewerWorkspace() {
               assignments, and status changes are security logged.
             </span>
           </div>
-          <form className={styles.loginCard} onSubmit={handleLogin}>
+          <form className={styles.loginCard} onSubmit={authMode === "login" ? handleLogin : handleRegistration}>
             <div className={styles.shieldMark}>S</div>
             <p>Reviewer gateway</p>
-            <h2>Sign in to the case workspace</h2>
+            <h2>{authMode === "login" ? "Sign in to the case workspace" : "Request a protected reviewer slot"}</h2>
+            <div className={styles.authTabs}>
+              <button className={authMode === "login" ? styles.activeAuthTab : ""} onClick={() => { setAuthMode("login"); setLoginError(""); }} type="button">Sign in</button>
+              <button className={authMode === "register" ? styles.activeAuthTab : ""} onClick={() => { setAuthMode("register"); setLoginError(""); }} type="button">Register with invite</button>
+            </div>
             <label>
-              Institutional email
+              Email address
               <input name="email" type="email" autoComplete="username" required />
             </label>
+            {authMode === "register" && (
+              <label>
+                Five-seat team invite
+                <input name="inviteCode" placeholder="SS-XXXX-XXXX" autoComplete="off" required />
+              </label>
+            )}
             <label>
-              Password
-              <input name="password" type="password" autoComplete="current-password" required />
+              {authMode === "login" ? "Password" : "Create password · 14+ characters"}
+              <input name="password" type="password" minLength={authMode === "register" ? 14 : undefined} autoComplete={authMode === "login" ? "current-password" : "new-password"} required />
             </label>
             {loginError && <div className={styles.errorBanner}>{loginError}</div>}
+            {registrationReceipt && <div className={styles.successBanner}><strong>Request submitted</strong><span>{registrationReceipt}</span><small>Two governance approvals are required before sign-in.</small></div>}
             <button disabled={isLoggingIn} type="submit">
-              {isLoggingIn ? "Verifying access…" : "Enter restricted workspace"}
+              {isLoggingIn ? "Securing request…" : authMode === "login" ? "Enter restricted workspace" : "Submit blind approval request"}
             </button>
-            <small>Ten failed attempts temporarily lock this sign-in scope.</small>
+            <small>{authMode === "login" ? "Ten failed attempts temporarily lock this sign-in scope." : "Governance sees only your pseudonymous reviewer ID and team slot—not your email."}</small>
           </form>
         </section>
       </main>
     );
+  }
+
+  if (reviewer.role === "administrator") {
+    return <GovernanceDashboard identity={reviewer} onLogout={logout} />;
   }
 
   return (
@@ -318,9 +410,9 @@ export function ReviewerWorkspace() {
           <button type="button"><i /> Audit activity</button>
         </nav>
         <div className={styles.scopeCard}>
-          <span>Access scope</span>
-          <strong>{label(reviewer.routeScope)}</strong>
-          <p>Server-enforced on every case request.</p>
+          <span>Protected team</span>
+          <strong>{reviewer.teamLabel ?? "Awaiting team activation"}</strong>
+          <p>{reviewer.teamPublicId ?? label(reviewer.routeScope)} · {reviewer.teamRole ? label(reviewer.teamRole) : "No active seat"}</p>
         </div>
         <button className={styles.logoutButton} type="button" onClick={logout}>Sign out</button>
       </aside>
@@ -329,11 +421,12 @@ export function ReviewerWorkspace() {
         <header className={styles.dashboardHeader}>
           <div>
             <p>Operations / Case queue</p>
-            <h1>Good day, {reviewer.displayName.split(" ")[0]}.</h1>
+            <h1>Good day, {reviewer.publicId}.</h1>
           </div>
+          <label className={styles.availabilityControl}>Status<select value={reviewer.availability} onChange={(event) => void setAvailability(event.target.value as Reviewer["availability"])}><option value="available">Available</option><option value="away">Away</option><option value="offline">Offline</option></select></label>
           <div className={styles.reviewerBadge}>
-            <span>{reviewer.displayName.slice(0, 1).toUpperCase()}</span>
-            <div><strong>{reviewer.displayName}</strong><small>{label(reviewer.role)}</small></div>
+            <span>R</span>
+            <div><strong>{reviewer.publicId}</strong><small>{reviewer.teamRole === "lead" ? "Lead Reviewer" : "Review Team"}</small></div>
           </div>
         </header>
 
@@ -421,13 +514,28 @@ export function ReviewerWorkspace() {
                   <div className={styles.messages}>
                     {selectedCase.messages.length === 0 ? <span>No messages yet.</span> : selectedCase.messages.map((item) => (
                       <div className={item.sender === "reviewer" ? styles.reviewerMessage : styles.reporterMessage} key={item.id}>
-                        <strong>{item.sender === "reviewer" ? "Review team" : "Anonymous reporter"}</strong><p>{item.body}</p><small>{formatDate(item.createdAt)}</small>
+                        <strong>{item.sender === "reviewer" ? item.senderPublicId ?? "Review team" : "Anonymous reporter · RPT-PRIVATE"}</strong><p>{item.body}</p><small>{formatDate(item.createdAt)}</small>
                       </div>
                     ))}
                   </div>
-                  <form onSubmit={sendMessage} className={styles.messageComposer}>
-                    <textarea value={message} onChange={(event) => setMessage(event.target.value)} maxLength={4000} placeholder="Ask for clarification without requesting identity details…" />
-                    <button disabled={isSaving || message.trim().length < 2} type="submit">Send secure reply</button>
+                  {selectedCase.canReply ? (
+                    <form onSubmit={sendMessage} className={styles.messageComposer}>
+                      <textarea value={message} onChange={(event) => setMessage(event.target.value)} maxLength={4000} placeholder="Ask for clarification without requesting identity details…" />
+                      <button disabled={isSaving || message.trim().length < 2} type="submit">Send as Lead Reviewer</button>
+                    </form>
+                  ) : (
+                    <div className={styles.leadLock}><span>Lead-only channel</span><p>You can read the complete anonymous thread. Only {selectedCase.assignedReviewerPublicId ?? "the assigned Lead Reviewer"} can send the official reply.</p></div>
+                  )}
+                </article>
+
+                <article className={styles.internalNotesCard}>
+                  <div><p>Team-only collaboration</p><h3>Internal notes</h3><span>Never visible to the anonymous reporter or governance accounts.</span></div>
+                  <div className={styles.internalNotes}>
+                    {selectedCase.internalNotes.length === 0 ? <span>No internal notes yet.</span> : selectedCase.internalNotes.map((note) => <div key={note.id}><strong>{note.authorPublicId}</strong><p>{note.body}</p><small>{formatDate(note.createdAt)}</small></div>)}
+                  </div>
+                  <form onSubmit={sendInternalNote} className={styles.messageComposer}>
+                    <textarea value={internalNote} onChange={(event) => setInternalNote(event.target.value)} maxLength={4000} placeholder="Add a team-only analysis note…" />
+                    <button disabled={isSaving || internalNote.trim().length < 2} type="submit">Save internal note</button>
                   </form>
                 </article>
               </div>
@@ -437,7 +545,7 @@ export function ReviewerWorkspace() {
                   <p>Workflow control</p>
                   <label>Status<select value={selectedCase.status} onChange={(event) => void updateCase({ status: event.target.value })} disabled={isSaving}>{statusOptions.map(([value, title]) => <option value={value} key={value}>{title}</option>)}</select></label>
                   <label>Priority<select value={selectedCase.priority} onChange={(event) => void updateCase({ priority: Number(event.target.value) })} disabled={isSaving}>{[1,2,3,4].map((value) => <option value={value} key={value}>P{value} · {value === 4 ? "Critical" : value === 3 ? "High" : value === 2 ? "Normal" : "Low"}</option>)}</select></label>
-                  <label>Assigned reviewer<select value={selectedCase.assignedReviewerId ?? ""} onChange={(event) => void updateCase({ assignedReviewerId: event.target.value || null })} disabled={isSaving}><option value="">Unassigned</option>{reviewers.map((item) => <option value={item.id} key={item.id}>{item.displayName}</option>)}</select></label>
+                  <label>Lead Reviewer<select value={selectedCase.assignedReviewerId ?? ""} onChange={(event) => void updateCase({ assignedReviewerId: event.target.value || null })} disabled={isSaving}><option value="">Unassigned</option>{reviewers.map((item) => <option value={item.id} key={item.id}>{item.displayName}</option>)}</select></label>
                   <label>Public update note<textarea value={caseNote} onChange={(event) => setCaseNote(event.target.value)} placeholder="Optional note shown in the reporter timeline" maxLength={1000} /></label>
                   <small>Changes are immediately logged and reflected in the reporter workspace.</small>
                 </div>

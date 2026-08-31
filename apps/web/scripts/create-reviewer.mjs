@@ -48,19 +48,28 @@ const passwordHash = [
   Buffer.from(key).toString("base64url"),
 ].join(":");
 const sql = neon(connectionString);
+const reviewerId = randomUUID();
+const publicId = `${role === "administrator" ? "GOV" : "REV"}-${reviewerId.replaceAll("-", "").slice(0, 8).toUpperCase()}`;
 
 await sql`
   INSERT INTO reviewer_users (
-    id, email, display_name, password_hash, role, route_scope
+    id, email, display_name, password_hash, role, route_scope,
+    public_id, account_status, is_active, approved_at
   ) VALUES (
-    ${randomUUID()}, ${email}, ${displayName}, ${passwordHash}, ${role}, ${routeScope}
+    ${reviewerId}, ${email}, ${role === "administrator" ? displayName : publicId},
+    ${passwordHash}, ${role}, ${routeScope}, ${publicId}, 'active', true, now()
   )
   ON CONFLICT (lower(email)) DO UPDATE SET
-    display_name = EXCLUDED.display_name,
+    display_name = CASE
+      WHEN EXCLUDED.role = 'administrator' THEN EXCLUDED.display_name
+      ELSE reviewer_users.public_id
+    END,
     password_hash = EXCLUDED.password_hash,
     role = EXCLUDED.role,
     route_scope = EXCLUDED.route_scope,
     is_active = true,
+    account_status = 'active',
+    approved_at = COALESCE(reviewer_users.approved_at, now()),
     updated_at = now()
 `;
 

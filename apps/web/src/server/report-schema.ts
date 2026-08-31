@@ -50,6 +50,39 @@ export const reviewerLoginSchema = z
   })
   .strict();
 
+export const reviewerRegistrationSchema = z
+  .object({
+    email: z.string().trim().toLowerCase().email().max(320),
+    password: z
+      .string()
+      .min(14, "Use at least 14 characters.")
+      .max(256),
+    inviteCode: z.string().trim().min(8).max(32),
+  })
+  .strict();
+
+export const governanceTeamSchema = z
+  .object({
+    label: z.string().trim().min(3).max(80),
+    teamType: z.enum(["committee", "independent_oversight"]),
+  })
+  .strict();
+
+export const governanceDecisionSchema = z
+  .object({
+    requestId: z.string().uuid(),
+    decision: z.enum(["approve", "reject"]),
+  })
+  .strict();
+
+export const reviewerAvailabilitySchema = z
+  .object({ availability: z.enum(["available", "away", "offline"]) })
+  .strict();
+
+export const internalNoteSchema = z
+  .object({ body: z.string().trim().min(2).max(4000) })
+  .strict();
+
 export const reviewerCaseUpdateSchema = z
   .object({
     status: z

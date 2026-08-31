@@ -152,6 +152,14 @@ export function generateOpaqueToken() {
   return randomBytes(32).toString("base64url");
 }
 
+export function generateTeamInviteCode() {
+  return `SS-${randomSegment(4)}-${randomSegment(4)}`;
+}
+
+export function normalizeTeamInviteCode(value: string) {
+  return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
 export function hashOpaqueToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }

@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 import {
   getCaseSnapshot,
+  getCaseInternalNotes,
   reviewerCanAccessReport,
+  reviewerCanReplyToReport,
   writeAudit,
 } from "@/server/case-service";
 import { getDatabase } from "@/server/database";
@@ -34,7 +36,17 @@ export async function GET(request: Request, context: RouteContext<"/api/reviewer
     const snapshot = await getCaseSnapshot(id);
     if (!snapshot) return jsonResponse({ error: { code: "CASE_NOT_FOUND" } }, 404);
     await writeAudit(reviewer.id, id, "case_viewed");
-    return jsonResponse({ data: snapshot });
+    const internalNotes = reviewer.teamId
+      ? await getCaseInternalNotes(id, reviewer.teamId)
+      : [];
+    return jsonResponse({
+      data: {
+        ...snapshot,
+        internalNotes,
+        canReply: await reviewerCanReplyToReport(reviewer, id),
+        viewerTeamRole: reviewer.teamRole,
+      },
+    });
   } catch (error) {
     return serviceErrorResponse(error);
   }
@@ -65,7 +77,7 @@ export async function PATCH(request: Request, context: RouteContext<"/api/review
     }
     const sql = getDatabase();
     const currentRows = await sql`
-      SELECT status, priority, assigned_reviewer_id, route_type
+      SELECT status, priority, assigned_reviewer_id, assigned_team_id, route_type
       FROM reports WHERE id = ${id} LIMIT 1
     `;
     const current = currentRows[0];
@@ -79,7 +91,6 @@ export async function PATCH(request: Request, context: RouteContext<"/api/review
         : parsed.data.assignedReviewerId;
     if (
       nextStatus !== String(current.status) &&
-      reviewer.role !== "administrator" &&
       !allowedStatusTransitions[String(current.status)]?.includes(nextStatus)
     ) {
       return jsonResponse(
@@ -89,12 +100,11 @@ export async function PATCH(request: Request, context: RouteContext<"/api/review
     }
     if (nextAssignee) {
       const assigneeRows = await sql`
-        SELECT id, role, route_scope
-        FROM reviewer_users
-        WHERE id = ${nextAssignee} AND is_active = true
-          AND (
-            role = 'administrator' OR route_scope = 'all' OR route_scope = ${String(current.route_type)}
-          )
+        SELECT u.id
+        FROM reviewer_users u
+        JOIN reviewer_team_members m ON m.reviewer_id = u.id AND m.is_active = true
+        WHERE u.id = ${nextAssignee} AND u.is_active = true
+          AND m.team_id = ${current.assigned_team_id ? String(current.assigned_team_id) : reviewer.teamId}
         LIMIT 1
       `;
       if (!assigneeRows[0]) {
@@ -108,7 +118,7 @@ export async function PATCH(request: Request, context: RouteContext<"/api/review
       transaction`
         UPDATE reports
         SET status = ${nextStatus}, priority = ${nextPriority},
-          assigned_reviewer_id = ${nextAssignee}, updated_at = now(),
+          assigned_reviewer_id = ${nextAssignee}, lead_reviewer_id = ${nextAssignee}, updated_at = now(),
           resolved_at = CASE
             WHEN ${nextStatus} IN ('resolved', 'closed') THEN COALESCE(resolved_at, now())
             ELSE NULL
@@ -127,7 +137,16 @@ export async function PATCH(request: Request, context: RouteContext<"/api/review
       `,
     ]);
     await writeAudit(reviewer.id, id, "case_updated");
-    return jsonResponse({ data: await getCaseSnapshot(id) });
+    const snapshot = await getCaseSnapshot(id);
+    const internalNotes = reviewer.teamId ? await getCaseInternalNotes(id, reviewer.teamId) : [];
+    return jsonResponse({
+      data: {
+        ...snapshot,
+        internalNotes,
+        canReply: await reviewerCanReplyToReport(reviewer, id),
+        viewerTeamRole: reviewer.teamRole,
+      },
+    });
   } catch (error) {
     return serviceErrorResponse(error);
   }

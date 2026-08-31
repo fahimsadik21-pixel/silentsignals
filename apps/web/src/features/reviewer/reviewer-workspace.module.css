@@ -827,6 +827,113 @@
   line-height: 1.45;
 }
 
+.authTabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 5px;
+  border-radius: 12px;
+  background: #eef2ed;
+}
+
+.authTabs button {
+  border: 0;
+  border-radius: 9px;
+  padding: 10px 8px;
+  background: transparent;
+  color: #65736b;
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.authTabs button.activeAuthTab {
+  background: #fff;
+  color: #07543e;
+  box-shadow: 0 5px 16px rgba(26, 55, 42, 0.08);
+}
+
+.successBanner {
+  display: grid;
+  gap: 4px;
+  padding: 13px 15px;
+  border: 1px solid #b9d7bb;
+  border-radius: 12px;
+  background: #edf8ec;
+  color: #145f45;
+  animation: fadeIn 0.35s ease both;
+}
+
+.successBanner span {
+  font: 700 0.72rem ui-monospace, SFMono-Regular, monospace;
+}
+
+.successBanner small { color: #647a6e; }
+
+.availabilityControl {
+  margin-left: auto;
+  display: grid;
+  gap: 4px;
+  color: #78847d;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.availabilityControl select {
+  min-width: 118px;
+  border: 1px solid #d5ded6;
+  border-radius: 10px;
+  background: #fff;
+  color: #164c3b;
+  padding: 8px 10px;
+  font-weight: 800;
+}
+
+.leadLock {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px solid #d9e2d9;
+  border-radius: 13px;
+  background: #f7f9f5;
+}
+
+.leadLock span {
+  color: #1e6b53;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.leadLock p { margin-top: 5px; color: #68766f; font-size: 0.78rem; line-height: 1.5; }
+
+.internalNotesCard {
+  padding: 22px;
+  border: 1px solid #dce4dc;
+  border-radius: 18px;
+  background: linear-gradient(145deg, #fbfcf8, #f3f7f1);
+  animation: fadeIn 0.45s ease both;
+}
+
+.internalNotesCard > div:first-child p {
+  color: #26705a;
+  font-size: 0.65rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.internalNotesCard h3 { margin: 5px 0; font-size: 1.15rem; }
+.internalNotesCard > div:first-child > span { color: #78847c; font-size: 0.72rem; }
+.internalNotes { display: grid; gap: 8px; margin: 15px 0; }
+.internalNotes > span { padding: 15px; color: #7c8881; font-size: 0.78rem; text-align: center; }
+.internalNotes > div { padding: 12px 14px; border: 1px solid #dce5dc; border-radius: 12px; background: #fff; }
+.internalNotes strong { color: #176148; font-size: 0.7rem; }
+.internalNotes p { margin: 5px 0; color: #394b42; font-size: 0.82rem; line-height: 1.5; }
+.internalNotes small { color: #87928c; font-size: 0.65rem; }
+
 @keyframes cardIn {
   from { opacity: 0; transform: translateY(22px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }

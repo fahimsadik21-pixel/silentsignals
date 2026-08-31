@@ -1,4 +1,11 @@
-import { addCaseMessage, getCaseSnapshot, reviewerCanAccessReport, writeAudit } from "@/server/case-service";
+import {
+  addCaseMessage,
+  getCaseInternalNotes,
+  getCaseSnapshot,
+  reviewerCanAccessReport,
+  reviewerCanReplyToReport,
+  writeAudit,
+} from "@/server/case-service";
 import { isRequestTooLarge, jsonResponse, serviceErrorResponse } from "@/server/http";
 import { messageInputSchema } from "@/server/report-schema";
 import { getReviewerIdentity, isSameOriginMutation } from "@/server/sessions";
@@ -24,6 +31,12 @@ export async function POST(
     if (!(await reviewerCanAccessReport(reviewer, id))) {
       return jsonResponse({ error: { code: "CASE_NOT_FOUND" } }, 404);
     }
+    if (!(await reviewerCanReplyToReport(reviewer, id))) {
+      return jsonResponse(
+        { error: { code: "LEAD_REQUIRED", message: "Only the assigned Lead Reviewer can reply to the reporter." } },
+        403,
+      );
+    }
     const parsed = messageInputSchema.safeParse(await request.json());
     if (!parsed.success) {
       return jsonResponse({ error: { code: "INVALID_MESSAGE" } }, 422);
@@ -31,7 +44,11 @@ export async function POST(
 
     await addCaseMessage(id, "reviewer", parsed.data.body, reviewer.id);
     await writeAudit(reviewer.id, id, "message_sent");
-    return jsonResponse({ data: await getCaseSnapshot(id) }, 201);
+    const snapshot = await getCaseSnapshot(id);
+    const internalNotes = reviewer.teamId ? await getCaseInternalNotes(id, reviewer.teamId) : [];
+    return jsonResponse({
+      data: { ...snapshot, internalNotes, canReply: true, viewerTeamRole: reviewer.teamRole },
+    }, 201);
   } catch (error) {
     return serviceErrorResponse(error);
   }
