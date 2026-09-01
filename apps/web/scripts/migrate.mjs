@@ -3,10 +3,12 @@ import path from "node:path";
 import process from "node:process";
 import { neon } from "@neondatabase/serverless";
 
-const connectionString = process.env.DATABASE_URL;
+const connectionString =
+  process.env.SILENTSIGNALS_DATABASE_POSTGRES_URL ?? process.env.DATABASE_URL;
 
 if (!connectionString) {
-  throw new Error("DATABASE_URL is required. Add it to apps/web/.env.local first.");
+  process.stdout.write("Database migration skipped: no database URL is configured.\n");
+  process.exit(0);
 }
 
 const sql = neon(connectionString);
