@@ -46,11 +46,14 @@ export default function HomePage() {
           <a className="reviewer-link" href="/reviewer">
             Reviewer sign in
           </a>
+          <a className="reviewer-link" href="/governance">
+            Dean / VC
+          </a>
           <button className="language-button" type="button" aria-label="Change language">
             EN <span aria-hidden="true">/</span> বাংলা
           </button>
           <a className="header-cta" href="/track">
-            Track a case
+            Reporter / Victim access
           </a>
         </div>
       </header>
@@ -75,6 +78,9 @@ export default function HomePage() {
             <a className="button button-reviewer" href="/reviewer">
               <span aria-hidden="true">R</span>
               Reviewer sign in
+            </a>
+            <a className="button button-secondary" href="/track">
+              Reporter / Victim access
             </a>
             <a className="button button-secondary" href="#how-it-works">
               See how privacy works

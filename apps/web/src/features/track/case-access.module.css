@@ -1104,6 +1104,29 @@
   line-height: 1.5;
 }
 
+.chatShortcut {
+  background: #0b563f;
+  border-radius: 16px;
+  color: #fff;
+  display: grid;
+  font-size: 0.82rem;
+  font-weight: 850;
+  gap: 5px;
+  padding: 17px 19px;
+  text-decoration: none;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.chatShortcut:hover {
+  box-shadow: 0 16px 32px rgba(9, 65, 48, 0.18);
+  transform: translateY(-2px);
+}
+
+.chatShortcut span {
+  color: #d7ed9e;
+  font-size: 0.68rem;
+}
+
 .previewModeCard {
   align-items: flex-start;
   background: #f1f7d8;

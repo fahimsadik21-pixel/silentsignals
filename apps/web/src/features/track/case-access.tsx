@@ -461,13 +461,15 @@ export function CaseAccess() {
                 )}
               </article>
 
-              <article className={styles.messageCard}>
+              <article className={styles.messageCard} id="anonymous-chat">
                 <div className={styles.messageWorkspace}>
-                  <p>Secure correspondence</p>
+                  <p>Anonymous victim ↔ Lead Reviewer chat</p>
                   <h2>
                     {openedCase.messages.length > 0
                       ? "Private case conversation"
-                      : "No investigator messages yet."}
+                      : openedCase.source === "database"
+                        ? "Start an anonymous conversation"
+                        : "This is a legacy browser-only receipt"}
                   </h2>
                   <div className={styles.messageThread}>
                     {openedCase.messages.map((item) => (
@@ -494,7 +496,11 @@ export function CaseAccess() {
                       </button>
                     </form>
                   ) : (
-                    <span>Messaging becomes available when the production database is connected.</span>
+                    <div className={styles.workspaceError}>
+                      This older preview was never stored on the server, so it cannot support chat.
+                      Submit one new report to receive database-backed credentials and anonymous messaging.
+                      <div><Link href="/report">Submit a new secure report →</Link></div>
+                    </div>
                   )}
                   {workspaceError && <div className={styles.workspaceError}>{workspaceError}</div>}
                 </div>
@@ -517,6 +523,12 @@ export function CaseAccess() {
                   Access is limited to reviewers authorized for this routing level.
                 </span>
               </div>
+
+              {openedCase.source === "database" && (
+                <a className={styles.chatShortcut} href="#anonymous-chat">
+                  Open anonymous chat <span>Victim ↔ Lead Reviewer →</span>
+                </a>
+              )}
 
               <div className={styles.previewModeCard}>
                 <span aria-hidden="true">{openedCase.source === "encrypted_preview" ? "L" : "D"}</span>

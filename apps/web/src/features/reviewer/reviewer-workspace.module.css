@@ -829,11 +829,41 @@
 
 .authTabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 6px;
   padding: 5px;
   border-radius: 12px;
   background: #eef2ed;
+}
+
+.flowNotice {
+  background: #f4f7f1;
+  border: 1px solid #d9e3d5;
+  border-radius: 11px;
+  color: #52645b;
+  font-size: 0.7rem;
+  line-height: 1.55;
+  margin: 12px 0 16px;
+  padding: 11px 13px;
+}
+
+.reporterAccess {
+  align-items: center;
+  border-top: 1px solid #e1e7e0;
+  color: #0c523e;
+  display: flex;
+  font-size: 0.72rem;
+  font-weight: 850;
+  justify-content: space-between;
+  margin-top: 18px;
+  padding-top: 15px;
+  text-decoration: none;
+}
+
+.reporterAccess span {
+  color: #718078;
+  font-size: 0.62rem;
+  font-weight: 700;
 }
 
 .authTabs button {

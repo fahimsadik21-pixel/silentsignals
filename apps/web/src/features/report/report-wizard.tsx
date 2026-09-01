@@ -5,7 +5,6 @@ import { upload } from "@vercel/blob/client";
 import type { ChangeEvent } from "react";
 import { useMemo, useState } from "react";
 import { BrandIdentity } from "@/components/brand-identity";
-import { savePreviewCase } from "@/lib/preview-case-store";
 import styles from "./report-wizard.module.css";
 
 const steps = ["Context", "Routing", "Details", "Evidence", "Review"] as const;
@@ -80,23 +79,6 @@ const initialDraft: Draft = {
   location: "",
   consent: false,
 };
-
-function generateSegment(length: number) {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const randomValues = new Uint8Array(length);
-  crypto.getRandomValues(randomValues);
-
-  return Array.from(randomValues, (value) => alphabet[value % alphabet.length]).join("");
-}
-
-function generateReceipt(): Omit<Receipt, "source"> {
-  const year = new Date().getFullYear();
-
-  return {
-    trackingCode: `SIG-${year}-${generateSegment(4)}-${generateSegment(4)}`,
-    accessKey: [4, 4, 4, 4].map((length) => generateSegment(length)).join(" "),
-  };
-}
 
 function getLabel(options: readonly (readonly string[])[], value: string) {
   return options.find(([key]) => key === value)?.[1] ?? "Not selected";
@@ -284,43 +266,18 @@ export function ReportWizard() {
         }
       }
 
-      if (response && response.status !== 503) {
+      if (response) {
         const result = (await response.json().catch(() => null)) as ReportApiResponse | null;
         setReceiptError(
-          result?.error?.message ?? "The secure report service could not accept this report.",
+          result?.error?.message ??
+            "The secure report service is temporarily unavailable. Nothing was submitted; try again.",
         );
         return;
       }
 
-      const nextReceipt: Receipt = {
-        ...generateReceipt(),
-        source: "encrypted_preview",
-      };
-      const createdAt = new Date().toISOString();
-
-      await savePreviewCase(
-        {
-          version: 1,
-          trackingCode: nextReceipt.trackingCode,
-          status: "received",
-          route: isProtectedRoute ? "Independent oversight" : "Internal ethics committee",
-          category: draft.category,
-          urgency: draft.urgency,
-          title: draft.title,
-          description: draft.description,
-          createdAt,
-          updatedAt: createdAt,
-          evidenceCount: evidence.length,
-        },
-        nextReceipt.accessKey,
-      );
-
-      setReceipt(nextReceipt);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      setReceiptError("The secure report service is unreachable. Nothing was submitted; try again.");
     } catch {
-      setReceiptError(
-        "This browser blocked encrypted preview storage. Allow site data and try again.",
-      );
+      setReceiptError("The secure report service is unreachable. Nothing was submitted; try again.");
     } finally {
       setUploadStatus("");
       setIsCreatingReceipt(false);

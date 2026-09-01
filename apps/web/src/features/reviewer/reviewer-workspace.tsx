@@ -90,6 +90,7 @@ type CaseSnapshot = {
 
 type Metrics = { total: number; urgent: number; unassigned: number; awaitingReporter: number };
 type ReviewerOption = Pick<Reviewer, "id" | "displayName" | "role" | "routeScope">;
+type AuthMode = "reviewer" | "register" | "governance";
 
 const emptyMetrics: Metrics = { total: 0, urgent: 0, unassigned: 0, awaitingReporter: 0 };
 const statusOptions = [
@@ -116,12 +117,12 @@ function formatBytes(value: number) {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function ReviewerWorkspace() {
+export function ReviewerWorkspace({ initialAuthMode = "reviewer" }: { initialAuthMode?: AuthMode }) {
   const [reviewer, setReviewer] = useState<Reviewer | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
   const [loginError, setLoginError] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [authMode, setAuthMode] = useState<AuthMode>(initialAuthMode);
   const [registrationReceipt, setRegistrationReceipt] = useState("");
   const [cases, setCases] = useState<CaseListItem[]>([]);
   const [metrics, setMetrics] = useState<Metrics>(emptyMetrics);
@@ -360,34 +361,62 @@ export function ReviewerWorkspace() {
               assignments, and status changes are security logged.
             </span>
           </div>
-          <form className={styles.loginCard} onSubmit={authMode === "login" ? handleLogin : handleRegistration}>
+          <form className={styles.loginCard} onSubmit={authMode === "register" ? handleRegistration : handleLogin}>
             <div className={styles.shieldMark}>S</div>
-            <p>Reviewer gateway</p>
-            <h2>{authMode === "login" ? "Sign in to the case workspace" : "Request a protected reviewer slot"}</h2>
+            <p>{authMode === "governance" ? "Governance gateway" : "Reviewer gateway"}</p>
+            <h2>
+              {authMode === "register"
+                ? "Request approval for a reviewer team"
+                : authMode === "governance"
+                  ? "Dean / VC governance access"
+                  : "Reviewer workspace sign in"}
+            </h2>
             <div className={styles.authTabs}>
-              <button className={authMode === "login" ? styles.activeAuthTab : ""} onClick={() => { setAuthMode("login"); setLoginError(""); }} type="button">Sign in</button>
-              <button className={authMode === "register" ? styles.activeAuthTab : ""} onClick={() => { setAuthMode("register"); setLoginError(""); }} type="button">Register with invite</button>
+              <button className={authMode === "reviewer" ? styles.activeAuthTab : ""} onClick={() => { setAuthMode("reviewer"); setLoginError(""); }} type="button">Reviewer</button>
+              <button className={authMode === "register" ? styles.activeAuthTab : ""} onClick={() => { setAuthMode("register"); setLoginError(""); }} type="button">Request access</button>
+              <button className={authMode === "governance" ? styles.activeAuthTab : ""} onClick={() => { setAuthMode("governance"); setLoginError(""); }} type="button">Dean / VC</button>
             </div>
+            {authMode === "register" && (
+              <div className={styles.flowNotice}>
+                Dean/VC creates a five-seat team and gives one single-use seat code to each reviewer.
+                Your request then appears in their Pending approvals queue.
+              </div>
+            )}
+            {authMode === "governance" && (
+              <div className={styles.flowNotice}>
+                Pre-authorized governance accounts can create teams and approve reviewer IDs. They
+                cannot open reports, evidence, or anonymous conversations.
+              </div>
+            )}
             <label>
               Email address
               <input name="email" type="email" autoComplete="username" required />
             </label>
             {authMode === "register" && (
               <label>
-                Five-seat team invite
+                Reviewer seat code · issued by Dean/VC
                 <input name="inviteCode" placeholder="SS-XXXX-XXXX" autoComplete="off" required />
               </label>
             )}
             <label>
-              {authMode === "login" ? "Password" : "Create password · 14+ characters"}
-              <input name="password" type="password" minLength={authMode === "register" ? 14 : undefined} autoComplete={authMode === "login" ? "current-password" : "new-password"} required />
+              {authMode === "register" ? "Create password · 14+ characters" : "Password"}
+              <input name="password" type="password" minLength={authMode === "register" ? 14 : undefined} autoComplete={authMode === "register" ? "new-password" : "current-password"} required />
             </label>
             {loginError && <div className={styles.errorBanner}>{loginError}</div>}
-            {registrationReceipt && <div className={styles.successBanner}><strong>Request submitted</strong><span>{registrationReceipt}</span><small>Two governance approvals are required before sign-in.</small></div>}
+            {registrationReceipt && <div className={styles.successBanner}><strong>Sent to Dean/VC Pending approvals</strong><span>{registrationReceipt}</span><small>Two different governance approvals are required before reviewer sign-in.</small></div>}
             <button disabled={isLoggingIn} type="submit">
-              {isLoggingIn ? "Securing request…" : authMode === "login" ? "Enter restricted workspace" : "Submit blind approval request"}
+              {isLoggingIn
+                ? "Securing request…"
+                : authMode === "register"
+                  ? "Send approval request"
+                  : authMode === "governance"
+                    ? "Open governance dashboard"
+                    : "Open reviewer workspace"}
             </button>
-            <small>{authMode === "login" ? "Ten failed attempts temporarily lock this sign-in scope." : "Governance sees only your pseudonymous reviewer ID and team slot—not your email."}</small>
+            <small>{authMode === "register" ? "Governance sees only your pseudonymous reviewer ID and team slot—not your email." : "Ten failed attempts temporarily lock this sign-in scope."}</small>
+            <Link className={styles.reporterAccess} href="/track">
+              Reporter / Victim access <span>No account · tracking code + private key →</span>
+            </Link>
           </form>
         </section>
       </main>
