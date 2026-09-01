@@ -252,7 +252,15 @@ export function ReviewerWorkspace({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: form.get("email"),
-          privateKey: form.get("privateKey"),
+          password:
+            authMode === "governance" && governanceAction === "login"
+              ? form.get("password")
+              : undefined,
+          privateKey:
+            authMode === "reviewer" ||
+            (authMode === "governance" && governanceAction !== "login")
+              ? form.get("privateKey")
+              : undefined,
         }),
       });
       const result = await response.json();
@@ -630,32 +638,38 @@ export function ReviewerWorkspace({
                 </label>
               </>
             )}
-            {authMode === "governance" && governanceAction === "register" && (
+            {(authMode === "governance" && governanceAction === "register") ||
+            (authMode === "governance" && governanceAction === "login") ? (
               <label>
-                {t("Create password · 14+ characters")}
+                {t("Password")}
                 <input
                   name="password"
                   type="password"
-                  minLength={14}
-                  autoComplete="new-password"
+                  minLength={
+                    authMode === "governance" && governanceAction === "register"
+                      ? 14
+                      : undefined
+                  }
+                  autoComplete={
+                    authMode === "governance" && governanceAction === "register"
+                      ? "new-password"
+                      : "current-password"
+                  }
+                  required
+                />
+              </label>
+            ) : null}
+            {authMode === "reviewer" && (
+              <label>
+                {t("Private key")}
+                <input
+                  name="privateKey"
+                  placeholder="SS-XXXX-XXXX"
+                  autoComplete="one-time-code"
                   required
                 />
               </label>
             )}
-            {authMode !== "register" &&
-              !(
-                authMode === "governance" && governanceAction === "register"
-              ) && (
-                <label>
-                  {t("Private key")}
-                  <input
-                    name="privateKey"
-                    placeholder="SS-XXXX-XXXX"
-                    autoComplete="one-time-code"
-                    required
-                  />
-                </label>
-              )}
             {loginError && (
               <div className={styles.errorBanner}>{loginError}</div>
             )}

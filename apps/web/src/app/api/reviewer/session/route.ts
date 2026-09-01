@@ -15,6 +15,7 @@ import {
 } from "@/server/sessions";
 import { writeAudit } from "@/server/case-service";
 import { validateReviewerLogin } from "@/server/governance-service";
+import { verifyPassword } from "@/server/security";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,12 +44,12 @@ export async function POST(request: Request) {
 
   try {
     const parsed = reviewerLoginSchema.safeParse(await request.json());
-    if (!parsed.success || !parsed.data.privateKey) {
+    if (!parsed.success) {
       return jsonResponse(
         {
           error: {
             code: "INVALID_LOGIN",
-            message: "The email or private key is incorrect.",
+            message: "The email or credentials are incorrect.",
           },
         },
         401,
@@ -81,11 +82,67 @@ export async function POST(request: Request) {
       );
     }
 
+    const hasPrivateKey = Boolean(parsed.data.privateKey);
+    const hasPassword = Boolean(parsed.data.password);
+    const isGovernanceLogin = !hasPrivateKey && hasPassword;
+    const isReviewerLogin = hasPrivateKey && !hasPassword;
+
+    if (!isGovernanceLogin && !isReviewerLogin) {
+      return jsonResponse(
+        {
+          error: {
+            code: "INVALID_LOGIN",
+            message: "Use the correct sign-in form for your role.",
+          },
+        },
+        401,
+      );
+    }
+
+    if (isGovernanceLogin) {
+      const rows = await sql`
+        SELECT id, password_hash, is_active, role
+        FROM reviewer_users
+        WHERE lower(email) = ${parsed.data.email}
+          AND role = 'administrator'
+        LIMIT 1
+      `;
+      const admin = rows[0] as
+        | { id: string; password_hash: string; is_active: boolean }
+        | undefined;
+      const verified =
+        admin?.is_active === true && parsed.data.password
+          ? await verifyPassword(parsed.data.password, admin.password_hash)
+          : false;
+
+      await sql`
+        INSERT INTO security_events (scope_hash, event_type, succeeded)
+        VALUES (${scopeHash}, 'reviewer_login', ${verified})
+      `;
+      if (!admin || !verified) {
+        return jsonResponse(
+          {
+            error: {
+              code: "INVALID_LOGIN",
+              message: "The email or password is incorrect.",
+            },
+          },
+          401,
+        );
+      }
+
+      await sql`UPDATE reviewer_users SET last_login_at = now() WHERE id = ${admin.id}`;
+      const response = jsonResponse({ data: { authenticated: true } });
+      await createReviewerSession(admin.id, response);
+      await writeAudit(admin.id, null, "reviewer_login", scopeHash);
+      return response;
+    }
+
     let reviewerId: string | null = null;
     try {
       const validReviewer = await validateReviewerLogin({
         email: parsed.data.email,
-        privateKey: parsed.data.privateKey,
+        privateKey: parsed.data.privateKey ?? "",
       });
       reviewerId = validReviewer.id;
     } catch {
