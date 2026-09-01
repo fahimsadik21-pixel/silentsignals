@@ -46,28 +46,26 @@ export const messageInputSchema = z
 export const reviewerLoginSchema = z
   .object({
     email: z.string().trim().toLowerCase().email().max(320),
-    password: z.string().min(1).max(256),
+    privateKey: z.string().trim().min(1).max(64).optional(),
+    password: z.string().min(1).max(256).optional(),
   })
-  .strict();
+  .strict()
+  .refine((value) => Boolean(value.privateKey || value.password), {
+    message: "Provide either the assigned private key or password.",
+  });
 
 export const reviewerRegistrationSchema = z
   .object({
+    name: z.string().trim().min(2).max(120),
     email: z.string().trim().toLowerCase().email().max(320),
-    password: z
-      .string()
-      .min(14, "Use at least 14 characters.")
-      .max(256),
-    inviteCode: z.string().trim().min(8).max(32),
+    department: z.string().trim().max(120).optional().default(""),
   })
   .strict();
 
 export const governanceRegistrationSchema = z
   .object({
     email: z.string().trim().toLowerCase().email().max(320),
-    password: z
-      .string()
-      .min(14, "Use at least 14 characters.")
-      .max(256),
+    password: z.string().min(14, "Use at least 14 characters.").max(256),
   })
   .strict();
 
@@ -82,6 +80,8 @@ export const governanceDecisionSchema = z
   .object({
     requestId: z.string().uuid(),
     decision: z.enum(["approve", "reject"]),
+    teamId: z.string().uuid().optional(),
+    slotNumber: z.number().int().min(1).max(5).optional(),
   })
   .strict();
 
@@ -96,7 +96,14 @@ export const internalNoteSchema = z
 export const reviewerCaseUpdateSchema = z
   .object({
     status: z
-      .enum(["received", "triage", "under_review", "awaiting_reporter", "resolved", "closed"])
+      .enum([
+        "received",
+        "triage",
+        "under_review",
+        "awaiting_reporter",
+        "resolved",
+        "closed",
+      ])
       .optional(),
     priority: z.number().int().min(1).max(4).optional(),
     assignedReviewerId: z.string().uuid().nullable().optional(),
@@ -115,7 +122,11 @@ export const evidenceUploadPayloadSchema = z
   .object({
     fileName: z.string().trim().min(1).max(240),
     contentType: z.string().trim().min(1).max(120),
-    byteSize: z.number().int().positive().max(15 * 1024 * 1024),
+    byteSize: z
+      .number()
+      .int()
+      .positive()
+      .max(15 * 1024 * 1024),
   })
   .strict();
 
