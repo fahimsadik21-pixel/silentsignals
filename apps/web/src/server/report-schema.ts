@@ -61,6 +61,16 @@ export const reviewerRegistrationSchema = z
   })
   .strict();
 
+export const governanceRegistrationSchema = z
+  .object({
+    email: z.string().trim().toLowerCase().email().max(320),
+    password: z
+      .string()
+      .min(14, "Use at least 14 characters.")
+      .max(256),
+  })
+  .strict();
+
 export const governanceTeamSchema = z
   .object({
     label: z.string().trim().min(3).max(80),

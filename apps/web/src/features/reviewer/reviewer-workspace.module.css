@@ -29,6 +29,18 @@
   font-weight: 700;
 }
 
+.publicHeaderActions {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.publicHeaderActions > a {
+  color: #496057;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .loginLayout {
   align-items: center;
   display: grid;
@@ -294,6 +306,12 @@
   font-size: 32px;
   letter-spacing: -0.045em;
   margin: 0;
+}
+
+.dashboardActions {
+  align-items: center;
+  display: flex;
+  gap: 12px;
 }
 
 .reviewerBadge {
@@ -836,6 +854,16 @@
   background: #eef2ed;
 }
 
+.governanceChoice {
+  background: #eef2ed;
+  border-radius: 12px;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 14px;
+  padding: 5px;
+}
+
 .flowNotice {
   background: #f4f7f1;
   border: 1px solid #d9e3d5;
@@ -866,7 +894,8 @@
   font-weight: 700;
 }
 
-.authTabs button {
+.authTabs button,
+.governanceChoice button {
   border: 0;
   border-radius: 9px;
   padding: 10px 8px;
@@ -877,7 +906,8 @@
   cursor: pointer;
 }
 
-.authTabs button.activeAuthTab {
+.authTabs button.activeAuthTab,
+.governanceChoice button.activeAuthTab {
   background: #fff;
   color: #07543e;
   box-shadow: 0 5px 16px rgba(26, 55, 42, 0.08);

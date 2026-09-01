@@ -5,6 +5,8 @@ import { upload } from "@vercel/blob/client";
 import type { ChangeEvent, FormEvent } from "react";
 import { useState } from "react";
 import { BrandIdentity } from "@/components/brand-identity";
+import { LanguageToggle } from "@/components/language-toggle";
+import { useLanguage } from "@/i18n/language-context";
 import { openPreviewCase, type PreviewCase } from "@/lib/preview-case-store";
 import styles from "./case-access.module.css";
 
@@ -161,6 +163,7 @@ function evidenceContentType(file: File) {
 }
 
 export function CaseAccess() {
+  const { t } = useLanguage();
   const [trackingCode, setTrackingCode] = useState("");
   const [accessKey, setAccessKey] = useState("");
   const [showKey, setShowKey] = useState(false);
@@ -223,17 +226,17 @@ export function CaseAccess() {
       }
 
       if (response.status === 429) {
-        setAccessError(result.error?.message ?? "Too many attempts. Try again later.");
+        setAccessError(t(result.error?.message ?? "Too many attempts. Try again later."));
       } else if (response.status === 503) {
         setAccessError(
-          "No encrypted preview matches these credentials in this browser. Older preview receipts were not stored; create one new report, then use its new credentials here.",
+          t("No encrypted preview matches these credentials in this browser. Older preview receipts were not stored; create one new report, then use its new credentials here."),
         );
       } else {
-        setAccessError("The tracking code and private access key do not match a case.");
+        setAccessError(t("The tracking code and private access key do not match a case."));
       }
     } catch {
       setAccessError(
-        "No encrypted preview matches these credentials in this browser, and the secure database is currently unavailable.",
+        t("No encrypted preview matches these credentials in this browser, and the secure database is currently unavailable."),
       );
     } finally {
       setIsOpening(false);
@@ -264,7 +267,7 @@ export function CaseAccess() {
     const response = await fetch("/api/cases/current", { cache: "no-store" });
     const result = (await response.json()) as SnapshotResponse;
     if (!response.ok || !result.data) {
-      throw new Error(result.error?.message ?? "Open the case again to continue.");
+      throw new Error(t(result.error?.message ?? "Open the case again to continue."));
     }
     setOpenedCase(snapshotToOpenedCase(result.data));
   };
@@ -283,12 +286,12 @@ export function CaseAccess() {
       });
       const result = (await response.json()) as SnapshotResponse;
       if (!response.ok || !result.data) {
-        throw new Error(result.error?.message ?? "The message could not be sent.");
+        throw new Error(t(result.error?.message ?? "The message could not be sent."));
       }
       setOpenedCase(snapshotToOpenedCase(result.data));
       setMessage("");
     } catch (error) {
-      setWorkspaceError(error instanceof Error ? error.message : "The message could not be sent.");
+      setWorkspaceError(error instanceof Error ? t(error.message) : t("The message could not be sent."));
     } finally {
       setIsSending(false);
     }
@@ -300,7 +303,7 @@ export function CaseAccess() {
     event.target.value = "";
     if (files.length === 0) return;
     if (openedCase.evidenceCount + files.length > 5) {
-      setWorkspaceError("A case can contain up to five evidence files.");
+      setWorkspaceError(t("A case can contain up to five evidence files."));
       return;
     }
 
@@ -329,7 +332,7 @@ export function CaseAccess() {
       await refreshDatabaseCase();
       if (failed > 0) setWorkspaceError(`${failed} evidence file(s) could not be uploaded.`);
     } catch (error) {
-      setWorkspaceError(error instanceof Error ? error.message : "Evidence status could not refresh.");
+      setWorkspaceError(error instanceof Error ? t(error.message) : t("Evidence status could not refresh."));
     } finally {
       setEvidenceProgress("");
     }
@@ -347,17 +350,17 @@ export function CaseAccess() {
 
     return (
       <main className={styles.page}>
-        <CaseHeader actionLabel="Lock case" onAction={lockCase} />
+        <CaseHeader actionLabel={t("Lock case")} onAction={lockCase} />
 
         <section className={styles.workspaceLayout}>
           <div className={styles.workspaceHeading}>
             <div>
-              <p className={styles.eyebrow}>Private case workspace</p>
+              <p className={styles.eyebrow}>{t("Private case workspace")}</p>
               <h1>{openedCase.title}</h1>
             </div>
             <div className={styles.workspaceStatus}>
               <span aria-hidden="true" />
-              {titleCase(openedCase.status)}
+              {t(titleCase(openedCase.status))}
             </div>
           </div>
 
@@ -366,25 +369,25 @@ export function CaseAccess() {
               <article className={styles.statusCard}>
                 <div className={styles.cardTopline}>
                   <div>
-                    <p>Case progress</p>
-                    <h2>Current status: {titleCase(openedCase.status)}</h2>
+                    <p>{t("Case progress")}</p>
+                    <h2>{t("Current status:")} {t(titleCase(openedCase.status))}</h2>
                   </div>
-                  <span>Updated {formatDate(openedCase.updatedAt)}</span>
+                  <span>{t("Updated")} {formatDate(openedCase.updatedAt)}</span>
                 </div>
                 <ol className={styles.caseProgress}>
                   {progressSteps.map((step, index) => (
                     <li className={index <= statusIndex ? styles.completedProgress : ""} key={step}>
                       <span>{index < statusIndex ? "✓" : `0${index + 1}`}</span>
-                      <strong>{step}</strong>
+                      <strong>{t(step)}</strong>
                     </li>
                   ))}
                 </ol>
                 <div className={styles.statusMessage}>
                   <span aria-hidden="true">i</span>
                   <p>
-                    <strong>{titleCase(openedCase.status)}</strong>
+                    <strong>{t(titleCase(openedCase.status))}</strong>
                     {openedCase.events.at(-1)?.detail ??
-                      "Every status change and reviewer update will appear in this private workspace."}
+                      t("Every status change and reviewer update will appear in this private workspace.")}
                   </p>
                 </div>
                 {openedCase.events.length > 0 && (
@@ -393,8 +396,8 @@ export function CaseAccess() {
                       <div key={event.id}>
                         <i aria-hidden="true" />
                         <p>
-                          <strong>{titleCase(event.type)}</strong>
-                          <span>{event.detail ?? titleCase(event.status)}</span>
+                          <strong>{t(titleCase(event.type))}</strong>
+                          <span>{event.detail ?? t(titleCase(event.status))}</span>
                           <small>{formatDate(event.createdAt)}</small>
                         </p>
                       </div>
@@ -406,43 +409,43 @@ export function CaseAccess() {
               <article className={styles.summaryCard}>
                 <div className={styles.cardTopline}>
                   <div>
-                    <p>Submitted report</p>
-                    <h2>Case summary</h2>
+                    <p>{t("Submitted report")}</p>
+                    <h2>{t("Case summary")}</h2>
                   </div>
                   <span>{formatDate(openedCase.createdAt)}</span>
                 </div>
                 <dl className={styles.caseFacts}>
                   <div>
-                    <dt>Category</dt>
+                    <dt>{t("Category")}</dt>
                     <dd>{openedCase.category}</dd>
                   </div>
                   <div>
-                    <dt>Urgency</dt>
-                    <dd>{titleCase(openedCase.urgency)}</dd>
+                    <dt>{t("Urgency")}</dt>
+                    <dd>{t(titleCase(openedCase.urgency))}</dd>
                   </div>
                   <div>
-                    <dt>Routing</dt>
+                    <dt>{t("Routing")}</dt>
                     <dd>{openedCase.route}</dd>
                   </div>
                   <div>
-                    <dt>Evidence</dt>
-                    <dd>{openedCase.evidenceCount} protected file(s)</dd>
+                    <dt>{t("Evidence")}</dt>
+                    <dd>{openedCase.evidenceCount} {t("protected file(s)")}</dd>
                   </div>
                 </dl>
                 {openedCase.description && (
                   <div className={styles.caseNarrative}>
-                    <span>Detailed account</span>
+                    <span>{t("Detailed account")}</span>
                     <p>{openedCase.description}</p>
                   </div>
                 )}
                 {openedCase.source === "database" && (
                   <div className={styles.reporterEvidence}>
                     <div>
-                      <strong>Protected evidence</strong>
-                      <span>{evidenceProgress || "Private files remain restricted to this case."}</span>
+                      <strong>{t("Protected evidence")}</strong>
+                      <span>{evidenceProgress || t("Private files remain restricted to this case.")}</span>
                     </div>
                     <label>
-                      Add evidence
+                      {t("Add evidence")}
                       <input
                         accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.txt,.mp3,.m4a,.wav,.mp4,.webm"
                         multiple
@@ -454,7 +457,7 @@ export function CaseAccess() {
                       <a href={`/api/cases/evidence/${file.id}`} key={file.id}>
                         <span>{file.name.split(".").pop()?.slice(0, 4).toUpperCase() || "FILE"}</span>
                         <p><strong>{file.name}</strong><small>{formatBytes(file.byteSize)} · {titleCase(file.status)}</small></p>
-                        <b>Download</b>
+                        <b>{t("Download")}</b>
                       </a>
                     ))}
                   </div>
@@ -463,13 +466,13 @@ export function CaseAccess() {
 
               <article className={styles.messageCard} id="anonymous-chat">
                 <div className={styles.messageWorkspace}>
-                  <p>Anonymous victim ↔ Lead Reviewer chat</p>
+                  <p>{t("Anonymous victim ↔ Lead Reviewer chat")}</p>
                   <h2>
                     {openedCase.messages.length > 0
-                      ? "Private case conversation"
+                      ? t("Private case conversation")
                       : openedCase.source === "database"
-                        ? "Start an anonymous conversation"
-                        : "This is a legacy browser-only receipt"}
+                        ? t("Start an anonymous conversation")
+                        : t("This is a legacy browser-only receipt")}
                   </h2>
                   <div className={styles.messageThread}>
                     {openedCase.messages.map((item) => (
@@ -477,7 +480,7 @@ export function CaseAccess() {
                         className={item.sender === "reporter" ? styles.reporterBubble : styles.reviewerBubble}
                         key={item.id}
                       >
-                        <strong>{item.sender === "reporter" ? "You" : `Lead Reviewer · ${item.senderPublicId ?? "REV-PRIVATE"}`}</strong>
+                        <strong>{item.sender === "reporter" ? t("You") : `${t("Lead Reviewer")} · ${item.senderPublicId ?? "REV-PRIVATE"}`}</strong>
                         <span>{item.body}</span>
                         <small>{formatDate(item.createdAt)}</small>
                       </div>
@@ -488,18 +491,17 @@ export function CaseAccess() {
                       <textarea
                         maxLength={4000}
                         onChange={(event) => setMessage(event.target.value)}
-                        placeholder="Reply without including identity details…"
+                        placeholder={t("Reply without including identity details…")}
                         value={message}
                       />
                       <button disabled={isSending || message.trim().length < 2} type="submit">
-                        {isSending ? "Sending…" : "Send private reply"}
+                        {t(isSending ? "Sending…" : "Send private reply")}
                       </button>
                     </form>
                   ) : (
                     <div className={styles.workspaceError}>
-                      This older preview was never stored on the server, so it cannot support chat.
-                      Submit one new report to receive database-backed credentials and anonymous messaging.
-                      <div><Link href="/report">Submit a new secure report →</Link></div>
+                      {t("This older preview was never stored on the server, so it cannot support chat. Submit one new report to receive database-backed credentials and anonymous messaging.")}
+                      <div><Link href="/report">{t("Submit a new secure report →")}</Link></div>
                     </div>
                   )}
                   {workspaceError && <div className={styles.workspaceError}>{workspaceError}</div>}
@@ -509,24 +511,24 @@ export function CaseAccess() {
 
             <aside className={styles.caseSidebar}>
               <div className={styles.caseIdentityCard}>
-                <p>Case reference</p>
+                <p>{t("Case reference")}</p>
                 <strong>{openedCase.trackingCode}</strong>
                 <button type="button" onClick={copyTrackingCode}>
-                  {copied ? "Copied" : "Copy tracking code"}
+                  {t(copied ? "Copied" : "Copy tracking code")}
                 </button>
               </div>
 
               <div className={styles.routeCard}>
-                <p>Assigned route</p>
+                <p>{t("Assigned route")}</p>
                 <strong>{openedCase.route}</strong>
                 <span>
-                  Access is limited to reviewers authorized for this routing level.
+                  {t("Access is limited to reviewers authorized for this routing level.")}
                 </span>
               </div>
 
               {openedCase.source === "database" && (
                 <a className={styles.chatShortcut} href="#anonymous-chat">
-                  Open anonymous chat <span>Victim ↔ Lead Reviewer →</span>
+                  {t("Open anonymous chat")} <span>{t("Victim ↔ Lead Reviewer →")}</span>
                 </a>
               )}
 
@@ -535,19 +537,19 @@ export function CaseAccess() {
                 <div>
                   <strong>
                     {openedCase.source === "encrypted_preview"
-                      ? "Encrypted local preview"
-                      : "Secure database case"}
+                      ? t("Encrypted local preview")
+                      : t("Secure database case")}
                   </strong>
                   <p>
                     {openedCase.source === "encrypted_preview"
-                      ? "This case exists only in this browser and is protected by the private access key."
-                      : "This case was verified by the server-side credential service."}
+                      ? t("This case exists only in this browser and is protected by the private access key.")
+                      : t("This case was verified by the server-side credential service.")}
                   </p>
                 </div>
               </div>
 
               <button className={styles.lockButton} type="button" onClick={lockCase}>
-                Lock and leave case
+                {t("Lock and leave case")}
               </button>
             </aside>
           </div>
@@ -564,33 +566,32 @@ export function CaseAccess() {
 
       <section className={styles.accessLayout}>
         <div className={styles.intro}>
-          <p className={styles.eyebrow}>Private case access</p>
-          <h1>Return to your case without revealing who you are.</h1>
+          <p className={styles.eyebrow}>{t("Private case access")}</p>
+          <h1>{t("Return to your case without revealing who you are.")}</h1>
           <p className={styles.summary}>
-            Your tracking code finds the case. Your private access key proves you are the
-            reporter. Neither credential contains your name or account information.
+            {t("Your tracking code finds the case. Your private access key proves you are the reporter. Neither credential contains your name or account information.")}
           </p>
 
           <div className={styles.privacyList}>
             <div>
               <span>01</span>
               <p>
-                <strong>No account login</strong>
-                No email address, password reset, or identity profile.
+                <strong>{t("No account login")}</strong>
+                {t("No email address, password reset, or identity profile.")}
               </p>
             </div>
             <div>
               <span>02</span>
               <p>
-                <strong>Two-part access</strong>
-                A tracking code alone cannot open a private case.
+                <strong>{t("Two-part access")}</strong>
+                {t("A tracking code alone cannot open a private case.")}
               </p>
             </div>
             <div>
               <span>03</span>
               <p>
-                <strong>Restricted attempts</strong>
-                Production access is rate-limited and security logged.
+                <strong>{t("Restricted attempts")}</strong>
+                {t("Production access is rate-limited and security logged.")}
               </p>
             </div>
           </div>
@@ -603,15 +604,15 @@ export function CaseAccess() {
                 <span />
               </div>
               <div>
-                <p>Secure gateway</p>
-                <h2>Open a private case</h2>
+                <p>{t("Secure gateway")}</p>
+                <h2>{t("Open a private case")}</h2>
               </div>
             </div>
 
             <div className={styles.fieldGroup}>
               <div className={styles.labelRow}>
-                <label htmlFor="tracking-code">Tracking code</label>
-                <span>Shown on your receipt</span>
+                <label htmlFor="tracking-code">{t("Tracking code")}</label>
+                <span>{t("Shown on your receipt")}</span>
               </div>
               <input
                 aria-describedby="tracking-hint tracking-error"
@@ -629,20 +630,20 @@ export function CaseAccess() {
                 value={trackingCode}
               />
               <p className={styles.fieldHint} id="tracking-hint">
-                Format: SIG–YEAR–XXXX–XXXX
+                {t("Format: SIG–YEAR–XXXX–XXXX")}
               </p>
               {attempted && !trackingValid && (
                 <p className={styles.errorText} id="tracking-error">
-                  Enter the complete tracking code from your receipt.
+                  {t("Enter the complete tracking code from your receipt.")}
                 </p>
               )}
             </div>
 
             <div className={styles.fieldGroup}>
               <div className={styles.labelRow}>
-                <label htmlFor="access-key">Private access key</label>
+                <label htmlFor="access-key">{t("Private access key")}</label>
                 <button type="button" onClick={() => setShowKey((visible) => !visible)}>
-                  {showKey ? "Hide" : "Show"}
+                  {t(showKey ? "Hide" : "Show")}
                 </button>
               </div>
               <div className={styles.secretInput}>
@@ -661,14 +662,14 @@ export function CaseAccess() {
                   type={showKey ? "text" : "password"}
                   value={accessKey}
                 />
-                <span aria-hidden="true">16 characters</span>
+                <span aria-hidden="true">16 {t("characters")}</span>
               </div>
               <p className={styles.fieldHint} id="key-hint">
-                This key cannot be recovered if it is lost.
+                {t("This key cannot be recovered if it is lost.")}
               </p>
               {attempted && !accessKeyValid && (
                 <p className={styles.errorText} id="key-error">
-                  Enter all four groups of your private access key.
+                  {t("Enter all four groups of your private access key.")}
                 </p>
               )}
             </div>
@@ -681,26 +682,24 @@ export function CaseAccess() {
             )}
 
             <button className={styles.primaryButton} disabled={isOpening} type="submit">
-              {isOpening ? "Opening secure case…" : "Access private case"}{" "}
+              {t(isOpening ? "Opening secure case…" : "Access private case")}{" "}
               <span aria-hidden="true">→</span>
             </button>
 
             <p className={styles.formFootnote}>
-              Never share both credentials with another person. SilentSignals support will
-              never ask for your private access key.
+              {t("Never share both credentials with another person. SilentSignals support will never ask for your private access key.")}
             </p>
           </form>
 
           <div className={styles.helpCard}>
             <span aria-hidden="true">?</span>
             <div>
-              <strong>Using an older preview receipt?</strong>
+              <strong>{t("Using an older preview receipt?")}</strong>
               <p>
-                Earlier previews did not save a case. Create one new report to generate an
-                encrypted record that can be reopened here.
+                {t("Earlier previews did not save a case. Create one new report to generate an encrypted record that can be reopened here.")}
               </p>
             </div>
-            <Link href="/report">New report</Link>
+            <Link href="/report">{t("New report")}</Link>
           </div>
         </div>
       </section>
@@ -717,6 +716,7 @@ function CaseHeader({
   actionLabel?: string;
   onAction?: () => void;
 }) {
+  const { t } = useLanguage();
   return (
     <header className={styles.header}>
       <Link className="brand" href="/" aria-label="SilentSignals home">
@@ -724,26 +724,30 @@ function CaseHeader({
       </Link>
       <div className={styles.headerTrust}>
         <i aria-hidden="true" />
-        Private credential access
+        {t("Private credential access")}
       </div>
-      {onAction ? (
-        <button className={styles.exitLink} type="button" onClick={onAction}>
-          {actionLabel}
-        </button>
-      ) : (
-        <Link className={styles.exitLink} href="/">
-          Return home
-        </Link>
-      )}
+      <div className={styles.headerActions}>
+        <LanguageToggle />
+        {onAction ? (
+          <button className={styles.exitLink} type="button" onClick={onAction}>
+            {actionLabel ? t(actionLabel) : null}
+          </button>
+        ) : (
+          <Link className={styles.exitLink} href="/">
+            {t("Return home")}
+          </Link>
+        )}
+      </div>
     </header>
   );
 }
 
 function CaseFooter() {
+  const { t } = useLanguage();
   return (
     <footer className={styles.footer}>
-      <span>SilentSignals secure workspace</span>
-      <span>Private access without an identity account</span>
+      <span>{t("SilentSignals secure workspace")}</span>
+      <span>{t("Private access without an identity account")}</span>
     </footer>
   );
 }

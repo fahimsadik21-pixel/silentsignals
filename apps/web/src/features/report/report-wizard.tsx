@@ -5,6 +5,8 @@ import { upload } from "@vercel/blob/client";
 import type { ChangeEvent } from "react";
 import { useMemo, useState } from "react";
 import { BrandIdentity } from "@/components/brand-identity";
+import { LanguageToggle } from "@/components/language-toggle";
+import { useLanguage } from "@/i18n/language-context";
 import styles from "./report-wizard.module.css";
 
 const steps = ["Context", "Routing", "Details", "Evidence", "Review"] as const;
@@ -108,6 +110,7 @@ function getEvidenceContentType(file: File) {
 }
 
 export function ReportWizard() {
+  const { t } = useLanguage();
   const [draft, setDraft] = useState<Draft>(initialDraft);
   const [currentStep, setCurrentStep] = useState(0);
   const [showErrors, setShowErrors] = useState(false);
@@ -172,13 +175,13 @@ export function ReportWizard() {
     const oversizedFile = combinedFiles.find((file) => file.size > 15 * 1024 * 1024);
 
     if (combinedFiles.length > 5) {
-      setEvidenceError("You can attach up to five files.");
+      setEvidenceError(t("You can attach up to five files."));
       event.target.value = "";
       return;
     }
 
     if (oversizedFile) {
-      setEvidenceError(`${oversizedFile.name} is larger than 15 MB.`);
+      setEvidenceError(`${oversizedFile.name} ${t("is larger than 15 MB.")}`);
       event.target.value = "";
       return;
     }
@@ -269,15 +272,15 @@ export function ReportWizard() {
       if (response) {
         const result = (await response.json().catch(() => null)) as ReportApiResponse | null;
         setReceiptError(
-          result?.error?.message ??
-            "The secure report service is temporarily unavailable. Nothing was submitted; try again.",
+          t(result?.error?.message ??
+            "The secure report service is temporarily unavailable. Nothing was submitted; try again."),
         );
         return;
       }
 
-      setReceiptError("The secure report service is unreachable. Nothing was submitted; try again.");
+      setReceiptError(t("The secure report service is unreachable. Nothing was submitted; try again."));
     } catch {
-      setReceiptError("The secure report service is unreachable. Nothing was submitted; try again.");
+      setReceiptError(t("The secure report service is unreachable. Nothing was submitted; try again."));
     } finally {
       setUploadStatus("");
       setIsCreatingReceipt(false);
@@ -312,49 +315,49 @@ export function ReportWizard() {
               ✓
             </span>
             <p className={styles.eyebrow}>
-              {receipt.source === "database" ? "Report secured" : "Encrypted local preview"}
+              {t(receipt.source === "database" ? "Report secured" : "Encrypted local preview")}
             </p>
-            <h1>Your private case credentials are ready.</h1>
+            <h1>{t("Your private case credentials are ready.")}</h1>
             <p>
               {receipt.source === "database"
-                ? "Your report is encrypted in the secure case database and is ready for authorized review."
-                : "An encrypted preview record is saved only in this browser so you can test private case access. Nothing has been transmitted to a server."}
+                ? t("Your report is encrypted in the secure case database and is ready for authorized review.")
+                : t("An encrypted preview record is saved only in this browser so you can test private case access. Nothing has been transmitted to a server.")}
             </p>
           </div>
 
           <div className={styles.receiptCard}>
             <CredentialRow
-              label="Tracking code"
+              label={t("Tracking code")}
               value={receipt.trackingCode}
               copied={copied === "tracking"}
               onCopy={() => copyCredential("tracking", receipt.trackingCode)}
             />
             <CredentialRow
-              label="Private access key"
+              label={t("Private access key")}
               value={receipt.accessKey}
               copied={copied === "access"}
               onCopy={() => copyCredential("access", receipt.accessKey)}
             />
             {uploadWarning && (
               <div className={styles.receiptWarning} role="status">
-                <strong>Evidence upload needs attention.</strong>
+                <strong>{t("Evidence upload needs attention.")}</strong>
                 <p>{uploadWarning}</p>
               </div>
             )}
             <div className={styles.receiptWarning}>
-              <strong>Save both values somewhere private.</strong>
+              <strong>{t("Save both values somewhere private.")}</strong>
               <p>
                 {receipt.source === "database"
-                  ? "The private access key is shown once and cannot be recovered by SilentSignals."
-                  : "These credentials open the encrypted preview on this browser. Evidence file contents were not stored or uploaded."}
+                  ? t("The private access key is shown once and cannot be recovered by SilentSignals.")
+                  : t("These credentials open the encrypted preview on this browser. Evidence file contents were not stored or uploaded.")}
               </p>
             </div>
             <div className={styles.receiptActions}>
               <Link className={styles.primaryButton} href="/track">
-                Open case tracking <span aria-hidden="true">→</span>
+                {t("Open case tracking")} <span aria-hidden="true">→</span>
               </Link>
               <button className={styles.secondaryButton} type="button" onClick={resetWizard}>
-                Start another report
+                {t("Start another report")}
               </button>
             </div>
           </div>
@@ -369,8 +372,8 @@ export function ReportWizard() {
 
       <div className={styles.wizardLayout}>
         <aside className={styles.progressPanel} aria-label="Report progress">
-          <p className={styles.progressEyebrow}>Private report</p>
-          <h1>Share what happened, one clear step at a time.</h1>
+          <p className={styles.progressEyebrow}>{t("Private report")}</p>
+          <h1>{t("Share what happened, one clear step at a time.")}</h1>
           <ol className={styles.progressList}>
             {steps.map((step, index) => (
               <li
@@ -380,22 +383,22 @@ export function ReportWizard() {
               >
                 <span>{index < currentStep ? "✓" : `0${index + 1}`}</span>
                 <div>
-                  <strong>{step}</strong>
-                  <small>{index < currentStep ? "Complete" : index === currentStep ? "In progress" : "Upcoming"}</small>
+                  <strong>{t(step)}</strong>
+                  <small>{t(index < currentStep ? "Complete" : index === currentStep ? "In progress" : "Upcoming")}</small>
                 </div>
               </li>
             ))}
           </ol>
           <div className={styles.localDraftNote}>
             <span aria-hidden="true">•</span>
-            <p>Your draft stays only in this browser tab during this preview.</p>
+            <p>{t("Your draft stays only in this browser tab during this preview.")}</p>
           </div>
         </aside>
 
         <section className={styles.formPanel} aria-live="polite">
           <div className={styles.mobileProgress}>
             <span>
-              Step {currentStep + 1} of {steps.length}
+              {t("Step")} {currentStep + 1} {t("of")} {steps.length}
             </span>
             <div>
               <i style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }} />
@@ -437,17 +440,17 @@ export function ReportWizard() {
           <div className={styles.formActions}>
             {currentStep > 0 ? (
               <button className={styles.secondaryButton} type="button" onClick={moveBack}>
-                Back
+                {t("Back")}
               </button>
             ) : (
               <Link className={styles.secondaryButton} href="/">
-                Cancel
+                {t("Cancel")}
               </Link>
             )}
 
             {currentStep < steps.length - 1 ? (
               <button className={styles.primaryButton} type="button" onClick={moveNext}>
-                Continue <span aria-hidden="true">→</span>
+                {t("Continue")} <span aria-hidden="true">→</span>
               </button>
             ) : (
               <button
@@ -457,8 +460,8 @@ export function ReportWizard() {
                 disabled={isCreatingReceipt}
               >
                 {isCreatingReceipt
-                  ? uploadStatus || "Securing report…"
-                  : "Submit secure report"}{" "}
+                  ? uploadStatus || t("Securing report…")
+                  : t("Submit secure report")}{" "}
                 <span aria-hidden="true">→</span>
               </button>
             )}
@@ -467,20 +470,20 @@ export function ReportWizard() {
         </section>
 
         <aside className={styles.assurancePanel}>
-          <p className={styles.assuranceTitle}>Privacy reminder</p>
-          <p>Describe events and evidence, not details that identify you.</p>
+          <p className={styles.assuranceTitle}>{t("Privacy reminder")}</p>
+          <p>{t("Describe events and evidence, not details that identify you.")}</p>
           <dl>
             <div>
-              <dt>Not requested</dt>
-              <dd>Name, email, student ID, phone</dd>
+              <dt>{t("Not requested")}</dt>
+              <dd>{t("Name, email, student ID, phone")}</dd>
             </div>
             <div>
-              <dt>Draft storage</dt>
-              <dd>Memory only in this preview</dd>
+              <dt>{t("Draft storage")}</dt>
+              <dd>{t("Memory only in this preview")}</dd>
             </div>
             <div>
-              <dt>Evidence</dt>
-              <dd>Private storage with restricted case access</dd>
+              <dt>{t("Evidence")}</dt>
+              <dd>{t("Private storage with restricted case access")}</dd>
             </div>
           </dl>
         </aside>
@@ -490,6 +493,7 @@ export function ReportWizard() {
 }
 
 function ReportHeader() {
+  const { t } = useLanguage();
   return (
     <header className={styles.header}>
       <Link className="brand" href="/" aria-label="SilentSignals home">
@@ -497,11 +501,14 @@ function ReportHeader() {
       </Link>
       <div className={styles.headerStatus}>
         <span aria-hidden="true" />
-        Secure reporting workspace
+        {t("Secure reporting workspace")}
       </div>
-      <Link className={styles.exitLink} href="/">
-        Exit report
-      </Link>
+      <div className={styles.headerActions}>
+        <LanguageToggle />
+        <Link className={styles.exitLink} href="/">
+          {t("Exit report")}
+        </Link>
+      </div>
     </header>
   );
 }
@@ -513,16 +520,18 @@ type StepProps = {
 };
 
 function StepHeading({ index, title, description }: { index: string; title: string; description: string }) {
+  const { t } = useLanguage();
   return (
     <div className={styles.stepHeading}>
-      <p>{index}</p>
-      <h2>{title}</h2>
-      <span>{description}</span>
+      <p>{t(index)}</p>
+      <h2>{t(title)}</h2>
+      <span>{t(description)}</span>
     </div>
   );
 }
 
 function StepContext({ draft, updateDraft, showErrors }: StepProps) {
+  const { t } = useLanguage();
   return (
     <div className={styles.stepContent}>
       <StepHeading
@@ -532,7 +541,7 @@ function StepContext({ draft, updateDraft, showErrors }: StepProps) {
       />
 
       <fieldset className={styles.fieldset}>
-        <legend>Your relationship to the institution</legend>
+        <legend>{t("Your relationship to the institution")}</legend>
         <div className={styles.optionGrid}>
           {roleOptions.map(([value, label, description]) => (
             <label className={styles.optionCard} key={value}>
@@ -544,35 +553,35 @@ function StepContext({ draft, updateDraft, showErrors }: StepProps) {
                 value={value}
               />
               <span className={styles.radioIndicator} aria-hidden="true" />
-              <strong>{label}</strong>
-              <small>{description}</small>
+              <strong>{t(label)}</strong>
+              <small>{t(description)}</small>
             </label>
           ))}
         </div>
         {showErrors && !draft.reporterRole && (
-          <p className={styles.errorText}>Select the perspective that fits best.</p>
+          <p className={styles.errorText}>{t("Select the perspective that fits best.")}</p>
         )}
       </fieldset>
 
       <div className={styles.fieldGroup}>
-        <label htmlFor="category">What is the concern mainly about?</label>
+        <label htmlFor="category">{t("What is the concern mainly about?")}</label>
         <select
           id="category"
           value={draft.category}
           onChange={(event) => updateDraft("category", event.target.value)}
         >
-          <option value="">Select a category</option>
+          <option value="">{t("Select a category")}</option>
           {categories.map((category) => (
-            <option key={category}>{category}</option>
+            <option key={category} value={category}>{t(category)}</option>
           ))}
         </select>
         {showErrors && !draft.category && (
-          <p className={styles.errorText}>Select a concern category.</p>
+          <p className={styles.errorText}>{t("Select a concern category.")}</p>
         )}
       </div>
 
       <fieldset className={styles.fieldset}>
-        <legend>How quickly does this need attention?</legend>
+        <legend>{t("How quickly does this need attention?")}</legend>
         <div className={styles.segmentedControl}>
           {[
             ["standard", "Standard", "No immediate danger"],
@@ -587,8 +596,8 @@ function StepContext({ draft, updateDraft, showErrors }: StepProps) {
                 type="radio"
                 value={value}
               />
-              <strong>{label}</strong>
-              <small>{description}</small>
+              <strong>{t(label)}</strong>
+              <small>{t(description)}</small>
             </label>
           ))}
         </div>
@@ -603,6 +612,7 @@ function StepRouting({
   showErrors,
   isProtectedRoute,
 }: StepProps & { isProtectedRoute: boolean }) {
+  const { t } = useLanguage();
   return (
     <div className={styles.stepContent}>
       <StepHeading
@@ -612,7 +622,7 @@ function StepRouting({
       />
 
       <fieldset className={styles.fieldset}>
-        <legend>Primary subject of the report</legend>
+        <legend>{t("Primary subject of the report")}</legend>
         <div className={styles.targetList}>
           {targetOptions.map(([value, label, description]) => (
             <label className={styles.targetOption} key={value}>
@@ -625,15 +635,15 @@ function StepRouting({
               />
               <span className={styles.radioIndicator} aria-hidden="true" />
               <div>
-                <strong>{label}</strong>
-                <small>{description}</small>
+                <strong>{t(label)}</strong>
+                <small>{t(description)}</small>
               </div>
               <span aria-hidden="true">→</span>
             </label>
           ))}
         </div>
         {showErrors && !draft.target && (
-          <p className={styles.errorText}>Select the closest routing option.</p>
+          <p className={styles.errorText}>{t("Select the closest routing option.")}</p>
         )}
       </fieldset>
 
@@ -643,32 +653,32 @@ function StepRouting({
             !
           </span>
           <div>
-            <strong>Independent route activated</strong>
+            <strong>{t("Independent route activated")}</strong>
             <p>
-              This selection is marked for external oversight. Internal committee accounts
-              will not receive normal case access.
+              {t("This selection is marked for external oversight. Internal committee accounts will not receive normal case access.")}
             </p>
           </div>
         </div>
       )}
 
       <div className={styles.fieldGroup}>
-        <label htmlFor="department">Department or unit (optional)</label>
+        <label htmlFor="department">{t("Department or unit (optional)")}</label>
         <input
           id="department"
           maxLength={120}
           onChange={(event) => updateDraft("department", event.target.value)}
-          placeholder="For example: Department of Computer Science"
+          placeholder={t("For example: Department of Computer Science")}
           type="text"
           value={draft.department}
         />
-        <small>Avoid including a person&apos;s name here.</small>
+        <small>{t("Avoid including a person's name here.")}</small>
       </div>
     </div>
   );
 }
 
 function StepDetails({ draft, updateDraft, showErrors }: StepProps) {
+  const { t } = useLanguage();
   return (
     <div className={styles.stepContent}>
       <StepHeading
@@ -678,53 +688,52 @@ function StepDetails({ draft, updateDraft, showErrors }: StepProps) {
       />
 
       <div className={styles.identityWarning}>
-        <strong>Before you write</strong>
+        <strong>{t("Before you write")}</strong>
         <p>
-          Do not include your name, email, student ID, phone number, or details that are not
-          necessary for the investigation.
+          {t("Do not include your name, email, student ID, phone number, or details that are not necessary for the investigation.")}
         </p>
       </div>
 
       <div className={styles.fieldGroup}>
         <div className={styles.labelRow}>
-          <label htmlFor="report-title">Short summary</label>
+          <label htmlFor="report-title">{t("Short summary")}</label>
           <span>{draft.title.length} / 120</span>
         </div>
         <input
           id="report-title"
           maxLength={120}
           onChange={(event) => updateDraft("title", event.target.value)}
-          placeholder="Summarize the concern without identifying yourself"
+          placeholder={t("Summarize the concern without identifying yourself")}
           type="text"
           value={draft.title}
         />
         {showErrors && draft.title.trim().length < 10 && (
-          <p className={styles.errorText}>Use at least 10 characters for the summary.</p>
+          <p className={styles.errorText}>{t("Use at least 10 characters for the summary.")}</p>
         )}
       </div>
 
       <div className={styles.fieldGroup}>
         <div className={styles.labelRow}>
-          <label htmlFor="description">Detailed account</label>
+          <label htmlFor="description">{t("Detailed account")}</label>
           <span>{draft.description.length} / 5000</span>
         </div>
         <textarea
           id="description"
           maxLength={5000}
           onChange={(event) => updateDraft("description", event.target.value)}
-          placeholder="Explain what happened, when it happened, who was involved by role, and what impact it had..."
+          placeholder={t("Explain what happened, when it happened, who was involved by role, and what impact it had...")}
           rows={10}
           value={draft.description}
         />
-        <small>Minimum 80 characters. Clear facts are more useful than conclusions.</small>
+        <small>{t("Minimum 80 characters. Clear facts are more useful than conclusions.")}</small>
         {showErrors && draft.description.trim().length < 80 && (
-          <p className={styles.errorText}>Add at least 80 characters of useful detail.</p>
+          <p className={styles.errorText}>{t("Add at least 80 characters of useful detail.")}</p>
         )}
       </div>
 
       <div className={styles.twoColumnFields}>
         <div className={styles.fieldGroup}>
-          <label htmlFor="incident-date">Approximate date (optional)</label>
+          <label htmlFor="incident-date">{t("Approximate date (optional)")}</label>
           <input
             id="incident-date"
             max={new Date().toISOString().split("T")[0]}
@@ -734,12 +743,12 @@ function StepDetails({ draft, updateDraft, showErrors }: StepProps) {
           />
         </div>
         <div className={styles.fieldGroup}>
-          <label htmlFor="location">Location or channel (optional)</label>
+          <label htmlFor="location">{t("Location or channel (optional)")}</label>
           <input
             id="location"
             maxLength={120}
             onChange={(event) => updateDraft("location", event.target.value)}
-            placeholder="Classroom, office, email, online meeting..."
+            placeholder={t("Classroom, office, email, online meeting...")}
             type="text"
             value={draft.location}
           />
@@ -760,6 +769,7 @@ function StepEvidence({
   onFiles: (event: ChangeEvent<HTMLInputElement>) => void;
   onRemove: (name: string) => void;
 }) {
+  const { t } = useLanguage();
   return (
     <div className={styles.stepContent}>
       <StepHeading
@@ -778,9 +788,9 @@ function StepEvidence({
         <span className={styles.uploadIcon} aria-hidden="true">
           +
         </span>
-        <strong>Choose evidence files</strong>
-        <p>PDF, images, documents, text, audio, or video. Up to 5 files, 15 MB each.</p>
-        <small>Files upload only after the report is created and are stored privately.</small>
+        <strong>{t("Choose evidence files")}</strong>
+        <p>{t("PDF, images, documents, text, audio, or video. Up to 5 files, 15 MB each.")}</p>
+        <small>{t("Files upload only after the report is created and are stored privately.")}</small>
       </label>
 
       {error && <p className={styles.errorText}>{error}</p>}
@@ -788,8 +798,8 @@ function StepEvidence({
       {evidence.length > 0 && (
         <div className={styles.fileList}>
           <div className={styles.fileListHeader}>
-            <strong>Selected locally</strong>
-            <span>{evidence.length} / 5 files</span>
+            <strong>{t("Selected locally")}</strong>
+            <span>{evidence.length} / 5 {t("files")}</span>
           </div>
           {evidence.map((file) => (
             <div className={styles.fileItem} key={`${file.name}-${file.lastModified}`}>
@@ -801,7 +811,7 @@ function StepEvidence({
                 <small>{(file.size / 1024 / 1024).toFixed(2)} MB</small>
               </div>
               <button type="button" onClick={() => onRemove(file.name)}>
-                Remove
+                {t("Remove")}
               </button>
             </div>
           ))}
@@ -809,15 +819,15 @@ function StepEvidence({
       )}
 
       <div className={styles.evidenceProcess}>
-        <p>Protected evidence pipeline</p>
+        <p>{t("Protected evidence pipeline")}</p>
         <div>
-          <span>01 Validate type</span>
+          <span>{t("01 Validate type")}</span>
           <i aria-hidden="true">→</i>
-          <span>02 Private upload</span>
+          <span>{t("02 Private upload")}</span>
           <i aria-hidden="true">→</i>
-          <span>03 Restricted access</span>
+          <span>{t("03 Restricted access")}</span>
           <i aria-hidden="true">→</i>
-          <span>04 Encrypt storage</span>
+          <span>{t("04 Encrypt storage")}</span>
         </div>
       </div>
     </div>
@@ -831,6 +841,7 @@ function StepReview({
   showErrors,
   updateDraft,
 }: StepProps & { evidence: File[]; isProtectedRoute: boolean }) {
+  const { t } = useLanguage();
   return (
     <div className={styles.stepContent}>
       <StepHeading
@@ -840,38 +851,38 @@ function StepReview({
       />
 
       <div className={styles.reviewGrid}>
-        <ReviewItem label="Your context" value={getLabel(roleOptions, draft.reporterRole)} />
-        <ReviewItem label="Category" value={draft.category} />
-        <ReviewItem label="Urgency" value={draft.urgency} capitalize />
-        <ReviewItem label="Subject" value={getLabel(targetOptions, draft.target)} />
+        <ReviewItem label={t("Your context")} value={t(getLabel(roleOptions, draft.reporterRole))} />
+        <ReviewItem label={t("Category")} value={t(draft.category)} />
+        <ReviewItem label={t("Urgency")} value={t(draft.urgency)} capitalize />
+        <ReviewItem label={t("Subject")} value={t(getLabel(targetOptions, draft.target))} />
         <ReviewItem
-          label="Routing"
-          value={isProtectedRoute ? "Independent oversight" : "Internal ethics committee"}
+          label={t("Routing")}
+          value={t(isProtectedRoute ? "Independent oversight" : "Internal ethics committee")}
         />
-        <ReviewItem label="Evidence" value={`${evidence.length} selected file(s)`} />
+        <ReviewItem label={t("Evidence")} value={`${evidence.length} ${t("selected file(s)")}`} />
       </div>
 
       <div className={styles.reviewNarrative}>
-        <span>Report summary</span>
+        <span>{t("Report summary")}</span>
         <h3>{draft.title}</h3>
         <p>{draft.description}</p>
         {(draft.incidentDate || draft.location || draft.department) && (
           <dl>
             {draft.department && (
               <div>
-                <dt>Unit</dt>
+                <dt>{t("Unit")}</dt>
                 <dd>{draft.department}</dd>
               </div>
             )}
             {draft.incidentDate && (
               <div>
-                <dt>Date</dt>
+                <dt>{t("Date")}</dt>
                 <dd>{draft.incidentDate}</dd>
               </div>
             )}
             {draft.location && (
               <div>
-                <dt>Location</dt>
+                <dt>{t("Location")}</dt>
                 <dd>{draft.location}</dd>
               </div>
             )}
@@ -889,15 +900,14 @@ function StepReview({
           ✓
         </span>
         <div>
-          <strong>I reviewed this report for unnecessary identifying information.</strong>
+          <strong>{t("I reviewed this report for unnecessary identifying information.")}</strong>
           <p>
-            I understand this development preview stores an encrypted record only in this
-            browser and does not send the report to a server.
+            {t("I understand this report will be encrypted and stored in the secure case database for authorized review.")}
           </p>
         </div>
       </label>
       {showErrors && !draft.consent && (
-        <p className={styles.errorText}>Confirm the review statement to continue.</p>
+        <p className={styles.errorText}>{t("Confirm the review statement to continue.")}</p>
       )}
     </div>
   );
@@ -931,13 +941,14 @@ function CredentialRow({
   copied: boolean;
   onCopy: () => void;
 }) {
+  const { t } = useLanguage();
   return (
     <div className={styles.credentialRow}>
       <span>{label}</span>
       <div>
         <strong>{value}</strong>
         <button type="button" onClick={onCopy}>
-          {copied ? "Copied" : "Copy"}
+          {t(copied ? "Copied" : "Copy")}
         </button>
       </div>
     </div>

@@ -29,6 +29,13 @@
   letter-spacing: 0.02em;
 }
 
+.headerActions {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-self: end;
+}
+
 .headerTrust i {
   background: #33a773;
   border: 3px solid rgba(51, 167, 115, 0.16);

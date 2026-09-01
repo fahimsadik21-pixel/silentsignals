@@ -182,6 +182,38 @@ export async function registerReviewer(input: {
   return { requestPublicId, reviewerPublicId, status: "pending" as const };
 }
 
+export async function registerInitialAdministrator(input: {
+  email: string;
+  password: string;
+}) {
+  const sql = getDatabase();
+  const administratorId = randomUUID();
+  const publicId = compactId("GOV", administratorId);
+  const passwordHash = await hashPassword(input.password);
+
+  const results = await sql.transaction((transaction) => [
+    transaction`SELECT pg_advisory_xact_lock(hashtext('silentsignals-governance-bootstrap'))`,
+    transaction`
+      INSERT INTO reviewer_users (
+        id, email, display_name, password_hash, role, route_scope, is_active,
+        public_id, account_status, availability, approved_at
+      )
+      SELECT
+        ${administratorId}, ${input.email}, ${publicId}, ${passwordHash}, 'administrator',
+        'all', true, ${publicId}, 'active', 'offline', now()
+      WHERE NOT EXISTS (
+        SELECT 1 FROM reviewer_users WHERE role = 'administrator'
+      )
+      RETURNING id, public_id
+    `,
+  ]);
+
+  const created = results[1]?.[0];
+  if (!created) throw new Error("GOVERNANCE_ALREADY_INITIALIZED");
+
+  return { id: String(created.id), publicId: String(created.public_id) };
+}
+
 export async function decideRegistration(
   identity: ReviewerIdentity,
   input: { requestId: string; decision: "approve" | "reject" },
