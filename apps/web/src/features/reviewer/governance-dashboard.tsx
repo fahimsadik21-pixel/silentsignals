@@ -39,9 +39,9 @@ type RegistrationRequest = {
   reviewerPublicId: string;
   reviewerName: string;
   reviewerEmail: string;
-  teamPublicId: string;
-  teamLabel: string;
-  teamType: string;
+  teamPublicId: string | null;
+  teamLabel: string | null;
+  teamType: string | null;
   status: string;
   approvalCount: number;
   approvedByMe: boolean;
@@ -83,6 +83,9 @@ export function GovernanceDashboard({
     inviteCodes: string[];
   } | null>(null);
   const [copiedValue, setCopiedValue] = useState<string | null>(null);
+  const [selectedTeams, setSelectedTeams] = useState<Record<string, string>>(
+    {},
+  );
   const [selectedSlots, setSelectedSlots] = useState<Record<string, number>>(
     {},
   );
@@ -193,13 +196,47 @@ export function GovernanceDashboard({
     }
   };
 
-  const copyValue = async (value: string, label: string) => {
-    await navigator.clipboard.writeText(value);
-    setCopiedValue(label);
+  const copyValue = async (value: string, copyLabel: string) => {
+    let copied = false;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+        copied = true;
+      }
+    } catch {
+      copied = false;
+    }
+
+    if (!copied) {
+      const textarea = document.createElement("textarea");
+      textarea.value = value;
+      textarea.setAttribute("readonly", "true");
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        copied = document.execCommand("copy");
+      } catch {
+        copied = false;
+      }
+      textarea.remove();
+    }
+
+    if (!copied) {
+      setError(t("Copy failed. Select the code and copy it manually."));
+      return;
+    }
+
+    setError("");
+    setCopiedValue(copyLabel);
     window.setTimeout(() => setCopiedValue(null), 1500);
   };
 
   const deleteTeam = async (teamId: string) => {
+    if (!window.confirm(t("Delete this unused team and revoke its invites?"))) {
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -474,14 +511,16 @@ export function GovernanceDashboard({
                 {inviteBundle.inviteCodes.map((code, index) => (
                   <button
                     type="button"
-                    onClick={() => void navigator.clipboard.writeText(code)}
+                    onClick={() => void copyValue(code, `invite:${code}`)}
                     key={code}
                   >
                     <span>
                       {t("Seat")} {index + 1}
                     </span>
                     <strong>{code}</strong>
-                    <small>{t("Copy")}</small>
+                    <small>
+                      {copiedValue === `invite:${code}` ? t("Copied") : t("Copy")}
+                    </small>
                   </button>
                 ))}
               </div>
@@ -504,9 +543,22 @@ export function GovernanceDashboard({
               snapshot.requests
                 .filter((request) => request.status === "pending")
                 .map((request) => {
+                  const eligibleTeams = snapshot.teams.filter((item) => {
+                    if (item.status !== "forming" && item.status !== "active")
+                      return false;
+                    return item.slots.some(
+                      (slot) =>
+                        !slot.assignedReviewerEmail && Boolean(slot.privateKey),
+                    );
+                  });
+                  const selectedTeamPublicId =
+                    selectedTeams[request.id] ??
+                    request.teamPublicId ??
+                    eligibleTeams[0]?.publicId ??
+                    "";
                   const team =
                     snapshot.teams.find(
-                      (item) => item.publicId === request.teamPublicId,
+                      (item) => item.publicId === selectedTeamPublicId,
                     ) ?? null;
                   const availableSlots =
                     team?.slots.filter(
@@ -525,7 +577,7 @@ export function GovernanceDashboard({
                           {request.reviewerName || request.reviewerPublicId}
                         </h3>
                         <span>
-                          {request.reviewerEmail} · {request.teamLabel}
+                          {request.reviewerEmail} · {request.teamLabel ?? t("Team to be assigned")}
                         </span>
                       </div>
                       <div className={styles.approvalProgress}>
@@ -546,6 +598,26 @@ export function GovernanceDashboard({
                         </small>
                       </div>
                       <div className={styles.actions}>
+                        {eligibleTeams.length > 0 && (
+                          <label>
+                            <span>{t("Assign team")}</span>
+                            <select
+                              value={selectedTeamPublicId}
+                              onChange={(event) =>
+                                setSelectedTeams((current) => ({
+                                  ...current,
+                                  [request.id]: event.target.value,
+                                }))
+                              }
+                            >
+                              {eligibleTeams.map((item) => (
+                                <option value={item.publicId} key={item.id}>
+                                  {item.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
                         {availableSlots.length > 0 ? (
                           <label>
                             <span>{t("Assign slot")}</span>

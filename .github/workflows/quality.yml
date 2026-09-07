@@ -35,6 +35,9 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Generate Next route types
+        run: pnpm --filter @silentsignals/web exec next typegen
+
       - name: Type check
         run: pnpm typecheck
 

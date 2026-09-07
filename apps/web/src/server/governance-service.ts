@@ -51,7 +51,7 @@ export async function getGovernanceSnapshot(identity: ReviewerIdentity) {
         i.private_key, i.slot_number
       FROM reviewer_registration_requests r
       JOIN reviewer_users u ON u.id = r.reviewer_id
-      JOIN reviewer_teams t ON t.id = r.team_id
+      LEFT JOIN reviewer_teams t ON t.id = r.team_id
       LEFT JOIN reviewer_team_invites i ON i.id = r.invite_id
       LEFT JOIN reviewer_registration_approvals a ON a.request_id = r.id
       GROUP BY r.id, u.public_id, u.display_name, u.email, t.public_id, t.label, t.team_type, i.private_key, i.slot_number
@@ -112,9 +112,9 @@ export async function getGovernanceSnapshot(identity: ReviewerIdentity) {
     reviewerPublicId: String(row.reviewer_public_id),
     reviewerName: String(row.reviewer_name),
     reviewerEmail: String(row.reviewer_email),
-    teamPublicId: String(row.team_public_id),
-    teamLabel: String(row.team_label),
-    teamType: String(row.team_type),
+    teamPublicId: row.team_public_id ? String(row.team_public_id) : null,
+    teamLabel: row.team_label ? String(row.team_label) : null,
+    teamType: row.team_type ? String(row.team_type) : null,
     status: String(row.status),
     approvalCount: Number(row.approval_count),
     approvedByMe: Boolean(row.approved_by_me),
@@ -392,6 +392,7 @@ export async function deleteUnusedTeam(
     throw new Error("TEAM_HAS_ACTIVE_REVIEWERS");
 
   await sql.transaction((transaction) => [
+    transaction`DELETE FROM reviewer_registration_requests WHERE team_id = ${teamId}`,
     transaction`DELETE FROM reviewer_team_invites WHERE team_id = ${teamId}`,
     transaction`DELETE FROM reviewer_teams WHERE id = ${teamId}`,
   ]);
@@ -410,7 +411,7 @@ export async function validateReviewerLogin(input: {
     FROM reviewer_users u
     JOIN reviewer_team_invites i ON i.assigned_reviewer_id = u.id
     WHERE lower(u.email) = ${input.email.toLowerCase()}
-      AND i.private_key = ${normalizeAccessKey(input.privateKey)}
+      AND regexp_replace(upper(i.private_key), '[^A-Z0-9]', '', 'g') = ${normalizeAccessKey(input.privateKey)}
       AND i.assigned_reviewer_id IS NOT NULL
       AND i.approved_at IS NOT NULL
       AND u.is_active = true
