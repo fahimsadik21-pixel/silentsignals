@@ -197,6 +197,10 @@
 }
 
 .workspace {
+  background:
+    radial-gradient(circle at 18% 8%, rgba(213, 255, 87, 0.11), transparent 28%),
+    radial-gradient(circle at 86% 0%, rgba(12, 82, 62, 0.08), transparent 30%),
+    #f4f5f0;
   display: grid;
   grid-template-columns: 244px minmax(0, 1fr);
 }
@@ -247,6 +251,16 @@
   width: 12px;
 }
 
+.sidebar nav button {
+  transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.sidebar nav button:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #f0f8dd;
+  transform: translateX(2px);
+}
+
 .sidebar nav .activeNav {
   background: rgba(214, 244, 92, 0.11);
   color: #e4f67f;
@@ -288,6 +302,7 @@
 
 .dashboardHeader {
   align-items: center;
+  animation: cardIn 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
   display: flex;
   justify-content: space-between;
   margin: 0 auto 30px;
@@ -384,9 +399,11 @@
 }
 
 .queueCard {
+  animation: cardIn 520ms 80ms cubic-bezier(0.22, 1, 0.36, 1) both;
   background: white;
   border: 1px solid #dce2db;
   border-radius: 18px;
+  box-shadow: 0 22px 70px rgba(20, 50, 38, 0.06);
   margin: 0 auto;
   max-width: 1440px;
   overflow: hidden;
@@ -409,6 +426,13 @@
   margin: 0;
 }
 
+.queueHeading span {
+  color: #7b8982;
+  display: block;
+  font-size: 11px;
+  margin-top: 7px;
+}
+
 .queueHeading button {
   background: #f2f5ef;
   border: 1px solid #d8e0d7;
@@ -418,6 +442,21 @@
   font-size: 11px;
   font-weight: 750;
   padding: 9px 12px;
+}
+
+.queueHeading button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.queueHeading button:not(:disabled):hover {
+  background: #e8f2e5;
+  border-color: #bdd2bd;
+  transform: translateY(-1px);
+}
+
+.queueHeading button {
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
 }
 
 .filters {
@@ -438,6 +477,7 @@
 
 .caseTable {
   overflow-x: auto;
+  min-height: 360px;
 }
 
 .tableHeader,
@@ -468,12 +508,18 @@
   font: inherit;
   padding: 16px 24px;
   text-align: left;
-  transition: background 150ms ease, transform 150ms ease;
+  min-height: 92px;
+  transition: background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
   width: 100%;
 }
 
 .caseRow:hover {
   background: #f8faF5;
+}
+
+.caseRowActive {
+  background: #f0f7ef;
+  box-shadow: inset 4px 0 0 #0c523e;
 }
 
 .caseRow > span {
@@ -500,6 +546,71 @@
   font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowAction {
+  align-items: center;
+  background: #eef7ed;
+  border: 1px solid #cddfce;
+  border-radius: 999px;
+  color: #0c523e !important;
+  display: inline-flex;
+  font-weight: 850;
+  justify-content: center;
+  padding: 5px 8px;
+  width: fit-content;
+}
+
+.auditCard {
+  animation: cardIn 520ms 80ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  background: white;
+  border: 1px solid #dce2db;
+  border-radius: 18px;
+  box-shadow: 0 22px 70px rgba(20, 50, 38, 0.06);
+  margin: 0 auto;
+  max-width: 1440px;
+  overflow: hidden;
+}
+
+.auditList {
+  display: grid;
+  gap: 0;
+  padding: 0 24px 24px;
+}
+
+.auditList article {
+  align-items: center;
+  animation: metricIn 360ms ease both;
+  border-top: 1px solid #edf0ec;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  padding: 16px 0;
+}
+
+.auditList article > span {
+  background: #d9f072;
+  border-radius: 999px;
+  box-shadow: 0 0 0 5px rgba(217, 240, 114, 0.18);
+  height: 10px;
+  width: 10px;
+}
+
+.auditList article strong {
+  font-size: 12px;
+}
+
+.auditList article p {
+  color: #718078;
+  font-family: Consolas, monospace;
+  font-size: 10px;
+  margin: 4px 0 0;
+}
+
+.auditList article time {
+  color: #728078;
+  font-size: 11px;
   white-space: nowrap;
 }
 
@@ -641,12 +752,28 @@
   padding: 22px;
 }
 
+.threadCard {
+  background:
+    linear-gradient(135deg, rgba(214, 244, 92, 0.14), transparent 35%),
+    #ffffff;
+  border-color: #c9d9c8;
+  box-shadow: 0 18px 42px rgba(10, 82, 62, 0.07);
+}
+
 .narrativeCard h3,
 .evidenceCard h3,
 .threadCard h3 {
   font-size: 19px;
   letter-spacing: -0.03em;
   margin: 0 0 16px;
+}
+
+.threadCard > div:first-child > span {
+  color: #75847d;
+  display: block;
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: -8px;
 }
 
 .narrativeCard > div {
@@ -780,12 +907,17 @@
 }
 
 .messageComposer {
+  background: #f4f8f2;
+  border: 1px solid #dce8d8;
+  border-radius: 15px;
   display: grid;
   gap: 10px;
+  padding: 12px;
 }
 
 .messageComposer textarea,
 .controlCard textarea {
+  background: white;
   min-height: 92px;
   padding: 12px;
   resize: vertical;
@@ -795,6 +927,12 @@
   justify-self: end;
   min-height: 42px;
   padding: 0 18px;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.messageComposer button:not(:disabled):hover {
+  box-shadow: 0 10px 24px rgba(12, 82, 62, 0.18);
+  transform: translateY(-1px);
 }
 
 .controlCard {
@@ -969,6 +1107,24 @@
 
 .leadLock p { margin-top: 5px; color: #68766f; font-size: 0.78rem; line-height: 1.5; }
 
+.leadLock button {
+  background: #0c523e;
+  border: 0;
+  border-radius: 11px;
+  color: white;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 900;
+  margin-top: 12px;
+  min-height: 42px;
+  padding: 0 15px;
+}
+
+.leadLock button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
 .internalNotesCard {
   padding: 22px;
   border: 1px solid #dce4dc;
@@ -1041,6 +1197,9 @@
   .metricsGrid article { min-height: 112px; }
   .filters { grid-template-columns: 1fr; padding: 12px; }
   .queueHeading { padding-inline: 16px; }
+  .auditList { padding-inline: 16px; }
+  .auditList article { grid-template-columns: 12px 1fr; }
+  .auditList article time { grid-column: 2; }
   .caseOverlay { padding: 0; }
   .caseDrawer { width: 100%; }
   .drawerHeader { padding: 18px; }
@@ -1050,7 +1209,11 @@
 
 @media (prefers-reduced-motion: reduce) {
   .loginCard,
+  .dashboardHeader,
   .metricsGrid article,
+  .queueCard,
+  .auditCard,
+  .auditList article,
   .caseOverlay,
   .caseDrawer { animation: none; }
 }

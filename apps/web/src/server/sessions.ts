@@ -180,7 +180,14 @@ export function clearReporterSession(response: NextResponse) {
 
 export function isSameOriginMutation(request: Request) {
   const origin = request.headers.get("origin");
-  if (!origin) return process.env.NODE_ENV !== "production";
+  // Native clients do not send a browser Origin header. Require the explicit
+  // client marker for those requests so browser CSRF protection stays strict.
+  if (!origin) {
+    return (
+      process.env.NODE_ENV !== "production" ||
+      request.headers.get("x-silentsignals-client") === "mobile"
+    );
+  }
 
   try {
     return new URL(origin).host === new URL(request.url).host;

@@ -12,6 +12,8 @@
     "start": "pnpm --filter @silentsignals/web start",
     "lint": "pnpm --filter @silentsignals/web lint",
     "typecheck": "pnpm --filter @silentsignals/web typecheck",
+    "mobile:start": "pnpm --filter mobile start",
+    "mobile:typecheck": "pnpm --filter mobile typecheck",
     "check": "pnpm lint && pnpm typecheck && pnpm build"
   }
 }

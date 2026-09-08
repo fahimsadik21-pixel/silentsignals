@@ -89,6 +89,10 @@ export async function PATCH(request: Request, context: RouteContext<"/api/review
       parsed.data.assignedReviewerId === undefined
         ? (current.assigned_reviewer_id as string | null)
         : parsed.data.assignedReviewerId;
+    const nextAssignedTeamId =
+      nextAssignee && !current.assigned_team_id
+        ? reviewer.teamId
+        : (current.assigned_team_id as string | null);
     if (
       nextStatus !== String(current.status) &&
       !allowedStatusTransitions[String(current.status)]?.includes(nextStatus)
@@ -118,7 +122,8 @@ export async function PATCH(request: Request, context: RouteContext<"/api/review
       transaction`
         UPDATE reports
         SET status = ${nextStatus}, priority = ${nextPriority},
-          assigned_reviewer_id = ${nextAssignee}, lead_reviewer_id = ${nextAssignee}, updated_at = now(),
+          assigned_reviewer_id = ${nextAssignee}, lead_reviewer_id = ${nextAssignee},
+          assigned_team_id = ${nextAssignedTeamId}, updated_at = now(),
           resolved_at = CASE
             WHEN ${nextStatus} IN ('resolved', 'closed') THEN COALESCE(resolved_at, now())
             ELSE NULL

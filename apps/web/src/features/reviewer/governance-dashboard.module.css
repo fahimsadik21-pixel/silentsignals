@@ -14,3 +14,9 @@
 @media(max-width:1100px){.shell{grid-template-columns:210px 1fr}.metrics{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}.createPanel{position:relative;top:auto}.requestList article{grid-template-columns:45px 1fr 130px}.actions{grid-column:2/-1;justify-content:flex-start}}
 @media(max-width:760px){.shell{display:block}.sidebar{position:relative;height:auto;border-right:0;border-bottom:1px solid #dfe5dc}.sidebar nav,.privacyCard{display:none}.main{padding:26px 16px 50px}.header{align-items:flex-start}.identity p{display:none}.metrics{grid-template-columns:1fr 1fr}.seats{grid-template-columns:1fr}.seats>div{min-height:0;grid-template-columns:12px 1fr;align-items:center}.requestList article{grid-template-columns:42px 1fr}.approvalProgress,.actions{grid-column:2}.approvals,.panel{padding:17px}}
 @media(prefers-reduced-motion:reduce){.shell *{animation:none!important;transition:none!important}}
+.shell{background:radial-gradient(circle at 18% 4%,rgba(207,255,80,.13),transparent 30%),radial-gradient(circle at 92% 12%,rgba(10,88,66,.1),transparent 32%),#f5f6f1}
+.panelHead button,.createPanel form button,.invites button,.actions button{transition:transform .16s ease,box-shadow .16s ease,background .16s ease}
+.panelHead button:hover{background:#eef4ed;border-color:#bfd1c1;transform:translateY(-1px)}
+.createPanel form button:hover{box-shadow:0 12px 24px rgba(0,0,0,.18);transform:translateY(-2px)}
+.invites button:hover{background:rgba(255,255,255,.17);transform:translateX(2px)}
+@media(prefers-reduced-motion:reduce){.panelHead button,.createPanel form button,.invites button,.actions button{transition:none!important}}

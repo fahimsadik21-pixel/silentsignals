@@ -107,11 +107,18 @@ type Metrics = {
   unassigned: number;
   awaitingReporter: number;
 };
+type AuditItem = {
+  id: string;
+  trackingCode: string | null;
+  action: string;
+  createdAt: string;
+};
 type ReviewerOption = Pick<
   Reviewer,
   "id" | "displayName" | "role" | "routeScope"
 >;
 type AuthMode = "reviewer" | "register" | "governance";
+type WorkspaceView = "queue" | "assignments" | "audit";
 
 const emptyMetrics: Metrics = {
   total: 0,
@@ -170,6 +177,9 @@ export function ReviewerWorkspace({
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [assignmentFilter, setAssignmentFilter] = useState("");
+  const [workspaceView, setWorkspaceView] = useState<WorkspaceView>("queue");
+  const [auditItems, setAuditItems] = useState<AuditItem[]>([]);
+  const [isLoadingAudit, setIsLoadingAudit] = useState(false);
   const [message, setMessage] = useState("");
   const [caseNote, setCaseNote] = useState("");
   const [internalNote, setInternalNote] = useState("");
@@ -211,6 +221,31 @@ export function ReviewerWorkspace({
     }
   }, [assignmentFilter, query, statusFilter, t]);
 
+  const fetchAudit = useCallback(async () => {
+    setIsLoadingAudit(true);
+    setWorkspaceError("");
+    try {
+      const response = await fetch("/api/reviewer/audit", { cache: "no-store" });
+      const result = await response.json();
+      if (response.status === 401) {
+        setReviewer(null);
+        return;
+      }
+      if (!response.ok) {
+        throw new Error(t(result.error?.message ?? "Audit activity could not be loaded."));
+      }
+      setAuditItems(result.data ?? []);
+    } catch (error) {
+      setWorkspaceError(
+        error instanceof Error
+          ? t(error.message)
+          : t("Audit activity could not be loaded."),
+      );
+    } finally {
+      setIsLoadingAudit(false);
+    }
+  }, [t]);
+
   useEffect(() => {
     void (async () => {
       try {
@@ -228,17 +263,17 @@ export function ReviewerWorkspace({
   }, []);
 
   useEffect(() => {
-    if (!reviewer || reviewer.role !== "reviewer") return;
+    if (reviewer?.role !== "reviewer") return;
     const timeout = window.setTimeout(() => void fetchCases(), 180);
     return () => window.clearTimeout(timeout);
-  }, [fetchCases, reviewer]);
+  }, [fetchCases, reviewer?.role]);
 
   useEffect(() => {
-    if (!reviewer || reviewer.role !== "reviewer") return;
+    if (reviewer?.role !== "reviewer") return;
     void fetch("/api/reviewer/reviewers", { cache: "no-store" })
       .then((response) => response.json())
       .then((result) => setReviewers(result.data ?? []));
-  }, [reviewer]);
+  }, [reviewer?.role]);
 
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -357,6 +392,8 @@ export function ReviewerWorkspace({
     await fetch("/api/reviewer/session", { method: "DELETE" });
     setReviewer(null);
     setCases([]);
+    setAuditItems([]);
+    setWorkspaceView("queue");
     setSelectedCase(null);
   };
 
@@ -729,13 +766,34 @@ export function ReviewerWorkspace({
           <BrandIdentity />
         </Link>
         <nav>
-          <button className={styles.activeNav} type="button">
+          <button
+            className={workspaceView === "queue" ? styles.activeNav : ""}
+            onClick={() => {
+              setWorkspaceView("queue");
+              setAssignmentFilter("");
+            }}
+            type="button"
+          >
             <i /> {t("Case queue")}
           </button>
-          <button type="button">
+          <button
+            className={workspaceView === "assignments" ? styles.activeNav : ""}
+            onClick={() => {
+              setWorkspaceView("assignments");
+              setAssignmentFilter("mine");
+            }}
+            type="button"
+          >
             <i /> {t("My assignments")}
           </button>
-          <button type="button">
+          <button
+            className={workspaceView === "audit" ? styles.activeNav : ""}
+            onClick={() => {
+              setWorkspaceView("audit");
+              void fetchAudit();
+            }}
+            type="button"
+          >
             <i /> {t("Audit activity")}
           </button>
         </nav>
@@ -808,14 +866,16 @@ export function ReviewerWorkspace({
           ))}
         </div>
 
+        {workspaceView !== "audit" ? (
         <section className={styles.queueCard}>
           <div className={styles.queueHeading}>
             <div>
-              <p>{t("Live workflow")}</p>
-              <h2>{t("Case queue")}</h2>
+              <p>{t(workspaceView === "assignments" ? "My active work" : "Live workflow")}</p>
+              <h2>{t(workspaceView === "assignments" ? "My assignments" : "Case queue")}</h2>
+              <span>{t("Open any case row to review evidence and reply to the anonymous reporter.")}</span>
             </div>
-            <button type="button" onClick={() => void fetchCases()}>
-              {t("Refresh")}
+            <button disabled={isLoadingCases} type="button" onClick={() => void fetchCases()}>
+              {t(isLoadingCases ? "Refreshing…" : "Refresh")}
             </button>
           </div>
           <div className={styles.filters}>
@@ -858,7 +918,7 @@ export function ReviewerWorkspace({
               <span>{t("Owner")}</span>
               <span>{t("Updated")}</span>
             </div>
-            {isLoadingCases ? (
+            {isLoadingCases && cases.length === 0 ? (
               <div className={styles.emptyState}>
                 {t("Refreshing protected case data…")}
               </div>
@@ -869,10 +929,13 @@ export function ReviewerWorkspace({
             ) : (
               cases.map((item) => (
                 <button
-                  className={styles.caseRow}
+                  className={`${styles.caseRow} ${
+                    selectedCase?.id === item.id ? styles.caseRowActive : ""
+                  }`}
                   type="button"
                   key={item.id}
                   onClick={() => void openCase(item.id)}
+                  aria-label={`${t("Open case")} ${item.trackingCode}`}
                 >
                   <span className={styles.caseTitle}>
                     <strong>{item.title}</strong>
@@ -900,13 +963,50 @@ export function ReviewerWorkspace({
                   </span>
                   <span>
                     <strong>{formatDate(item.updatedAt)}</strong>
-                    <small>{t("Open case →")}</small>
+                    <small className={styles.rowAction}>
+                      {item.canReply ? t("Open & reply →") : t("Open case →")}
+                    </small>
                   </span>
                 </button>
               ))
             )}
           </div>
         </section>
+        ) : (
+        <section className={styles.auditCard}>
+          <div className={styles.queueHeading}>
+            <div>
+              <p>{t("Security log")}</p>
+              <h2>{t("Audit activity")}</h2>
+              <span>{t("Your case views, replies, evidence downloads, and workflow changes appear here.")}</span>
+            </div>
+            <button disabled={isLoadingAudit} type="button" onClick={() => void fetchAudit()}>
+              {t(isLoadingAudit ? "Refreshing…" : "Refresh")}
+            </button>
+          </div>
+          {workspaceError && (
+            <div className={styles.errorBanner}>{workspaceError}</div>
+          )}
+          <div className={styles.auditList}>
+            {isLoadingAudit && auditItems.length === 0 ? (
+              <div className={styles.emptyState}>{t("Loading audit activity…")}</div>
+            ) : auditItems.length === 0 ? (
+              <div className={styles.emptyState}>{t("No audit activity yet.")}</div>
+            ) : (
+              auditItems.map((item) => (
+                <article key={item.id}>
+                  <span />
+                  <div>
+                    <strong>{t(label(item.action))}</strong>
+                    <p>{item.trackingCode ?? t("Account session")}</p>
+                  </div>
+                  <time>{formatDate(item.createdAt)}</time>
+                </article>
+              ))
+            )}
+          </div>
+        </section>
+        )}
       </section>
 
       {selectedCase && (
@@ -995,6 +1095,9 @@ export function ReviewerWorkspace({
                   <div>
                     <p>{t("Anonymous correspondence")}</p>
                     <h3>{t("Reporter conversation")}</h3>
+                    <span>
+                      {t("Messages sent here appear in the reporter/victim private case workspace.")}
+                    </span>
                   </div>
                   <div className={styles.messages}>
                     {selectedCase.messages.length === 0 ? (
@@ -1049,6 +1152,17 @@ export function ReviewerWorkspace({
                           t("the assigned Lead Reviewer")}{" "}
                         {t("can send the official reply.")}
                       </p>
+                      {!selectedCase.assignedReviewerId && reviewer.teamId ? (
+                        <button
+                          disabled={isSaving}
+                          onClick={() =>
+                            void updateCase({ assignedReviewerId: reviewer.id })
+                          }
+                          type="button"
+                        >
+                          {t(isSaving ? "Assigning…" : "Take lead & enable reply")}
+                        </button>
+                      ) : null}
                     </div>
                   )}
                 </article>

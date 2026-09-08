@@ -463,6 +463,22 @@ const bangla: Record<string, string> = {
   "Optional note shown in the reporter timeline": "রিপোর্টারের টাইমলাইনে দেখানো ঐচ্ছিক নোট",
   "Changes are immediately logged and reflected in the reporter workspace.": "পরিবর্তন সঙ্গে সঙ্গে লগ হয়ে রিপোর্টারের ওয়ার্কস্পেসে দেখা যায়।",
   "Case history": "কেসের ইতিহাস",
+  "My active work": "আমার সক্রিয় কাজ",
+  "Security log": "নিরাপত্তা লগ",
+  "Your case views, replies, evidence downloads, and workflow changes appear here.":
+    "আপনার কেস দেখা, উত্তর, প্রমাণ ডাউনলোড এবং কাজের পরিবর্তন এখানে দেখা যাবে।",
+  "Loading audit activity…": "অডিট কার্যক্রম লোড হচ্ছে…",
+  "No audit activity yet.": "এখনও কোনো অডিট কার্যক্রম নেই।",
+  "Account session": "অ্যাকাউন্ট সেশন",
+  "Audit activity could not be loaded.": "অডিট কার্যক্রম লোড করা যায়নি।",
+  "Refreshing…": "রিফ্রেশ হচ্ছে…",
+  "Open any case row to review evidence and reply to the anonymous reporter.":
+    "প্রমাণ পর্যালোচনা ও গোপন রিপোর্টারকে উত্তর দিতে যেকোনো কেস খুলুন।",
+  "Open & reply →": "খুলুন ও উত্তর দিন →",
+  "Messages sent here appear in the reporter/victim private case workspace.":
+    "এখানে পাঠানো বার্তা রিপোর্টার/ভিকটিমের ব্যক্তিগত কেস ওয়ার্কস্পেসে দেখা যাবে।",
+  "Take lead & enable reply": "লিড নিন ও উত্তর চালু করুন",
+  "Assigning…": "বরাদ্দ হচ্ছে…",
 };
 
 type LanguageContextValue = {
